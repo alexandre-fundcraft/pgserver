@@ -44,6 +44,15 @@ jobs:
           VERSION="${VERSION##*-}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
+      - name: Restore PostgreSQL build from cache
+        id: cache-postgres
+        uses: actions/cache@v3
+        with:
+          path: |
+            pgbuild
+            src/pgserver/pginstall
+          key: ${{ runner.os }}-${{ runner.arch }}-pg${{ steps.pg-version.outputs.version }}-${{ hashFiles('pgbuild/Makefile') }}
+
       - name: Build binary package (Unix)
         if: runner.os != 'Windows'
         working-directory: packages/${{ matrix.package }}
