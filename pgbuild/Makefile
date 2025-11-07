@@ -81,7 +81,7 @@ proj-$(PROJ_VER).tar.gz:
 proj-$(PROJ_VER)/CMakeLists.txt: proj-$(PROJ_VER).tar.gz
 	mkdir -p proj-$(PROJ_VER) && tar xzf $< -C proj-$(PROJ_VER) --strip-components=1 && touch $@
 $(INSTALL_PREFIX)/lib/libproj.so: proj-$(PROJ_VER)/CMakeLists.txt
-	mkdir -p proj-$(PROJ_VER)/build && cd proj-$(PROJ_VER)/build && cmake .. $(CMAKE_FLAGS) -DENABLE_TIFF=OFF && $(MAKE) -j && $(MAKE) install
+	mkdir -p proj-$(PROJ_VER)/build && cd proj-$(PROJ_VER)/build && cmake .. $(CMAKE_FLAGS) -DENABLE_TIFF=OFF -DENABLE_CURL=OFF && $(MAKE) -j && $(MAKE) install
 
 # GEOS 3.14.1
 GEOS_VER := 3.14.1
