@@ -44,28 +44,6 @@ def _find_postgres_binaries() -> Tuple[Optional[Path], Optional[int]]:
 # Find installed PostgreSQL binaries
 POSTGRES_BIN_PATH, INSTALLED_POSTGRES_VERSION = _find_postgres_binaries()
 
-# For backward compatibility
-DEFAULT_POSTGRES_VERSION = INSTALLED_POSTGRES_VERSION
-AVAILABLE_POSTGRES_VERSIONS = [INSTALLED_POSTGRES_VERSION] if INSTALLED_POSTGRES_VERSION else []
-
-def get_postgres_bin_path() -> Path:
-    """Get the binary path for the installed PostgreSQL version.
-
-    Returns:
-        Path to the bin directory
-
-    Raises:
-        FileNotFoundError: If PostgreSQL binaries are not found
-    """
-    if POSTGRES_BIN_PATH is None or not POSTGRES_BIN_PATH.exists():
-        raise FileNotFoundError(
-            "PostgreSQL binaries not found. "
-            "Please install one of the binary packages: "
-            "pgserver-postgres-16, pgserver-postgres-17, or pgserver-postgres-18"
-        )
-
-    return POSTGRES_BIN_PATH
-
 _logger = logging.getLogger('pgserver')
 
 def create_command_function(pg_exe_name : str) -> Callable:
@@ -117,7 +95,8 @@ def create_command_function(pg_exe_name : str) -> Callable:
 
     return command
 
-__all__ = []
+__all__ = ['INSTALLED_POSTGRES_VERSION']
+
 def _init():
     for path in POSTGRES_BIN_PATH.iterdir():
         exe_name = path.name

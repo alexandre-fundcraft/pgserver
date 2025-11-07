@@ -34,10 +34,6 @@ class PostgresServer:
     def __init__(self, pgdata : Path, *, cleanup_mode : Optional[str] = 'stop'):
         """ Initializes the postgresql server instance.
             Constructor is intended to be called directly, use get_server() instead.
-
-            Args:
-                pgdata: Path to the PostgreSQL data directory
-                cleanup_mode: How to clean up when the server is stopped ('stop', 'delete', or None)
         """
         assert cleanup_mode in [None, 'stop', 'delete']
 
@@ -178,7 +174,7 @@ class PostgresServer:
 
             try:
                 _logger.info(f"running pg_ctl... {pg_ctl_args=}")
-                pg_ctl(pg_ctl_args, pgdata=self.pgdata, user=self.system_user, timeout=10)
+                pg_ctl(pg_ctl_args,pgdata=self.pgdata, user=self.system_user, timeout=10)
             except subprocess.CalledProcessError as err:
                 _logger.error(f"Failed to start server.\nShowing contents of postgres server log ({self.log.absolute()}) below:\n{self.log.read_text()}")
                 raise err
@@ -268,20 +264,17 @@ class PostgresServer:
         self._cleanup()
 
 
-def get_server(pgdata : Union[Path,str], cleanup_mode : Optional[str] = 'stop') -> PostgresServer:
+def get_server(pgdata : Union[Path,str] , cleanup_mode : Optional[str] = 'stop' ) -> PostgresServer:
     """ Returns handle to postgresql server instance for the given pgdata directory.
     Args:
-        pgdata: pgdata directory. If the pgdata directory does not exist, it will be created, but its
-        parent must exist and be a valid directory.
+        pgdata: pddata directory. If the pgdata directory does not exist, it will be created, but its
+        parent must exists and be a valid directory.
         cleanup_mode: If 'stop', the server will be stopped when the last handle is closed (default)
                         If 'delete', the server will be stopped and the pgdata directory will be deleted.
                         If None, the server will not be stopped or deleted.
 
         To create a temporary server, use mkdtemp() to create a temporary directory and pass it as pg_data,
         and set cleanup_mode to 'delete'.
-
-    Example:
-        db = get_server('/path/to/data')
     """
     if isinstance(pgdata, str):
         pgdata = Path(pgdata)
