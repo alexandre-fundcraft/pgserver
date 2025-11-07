@@ -61,115 +61,59 @@ $(INSTALL_PREFIX)/lib/vector.so: $(PGVECTOR_DIR)/Makefile $(INSTALL_PREFIX)/bin/
 .PHONY: pgvector
 pgvector: postgres $(INSTALL_PREFIX)/lib/vector.so
 
-### json-c (dependency for PostGIS)
-JSONC_VERSION := 0.17
-JSONC_TAG := json-c-$(JSONC_VERSION)-20230812
-JSONC_URL := https://github.com/json-c/json-c/archive/refs/tags/$(JSONC_TAG).tar.gz
-JSONC_DIR := json-c-$(JSONC_TAG)
+### PostGIS dependencies and extension
+# Common CMake flags for all dependencies
+CMAKE_FLAGS := -DCMAKE_INSTALL_PREFIX=$(INSTALL_PREFIX) -DBUILD_SHARED_LIBS=ON -DBUILD_TESTING=OFF
 
-$(JSONC_DIR).tar.gz:
-	curl -L -o $(JSONC_DIR).tar.gz $(JSONC_URL)
+# JSON-C 0.17
+JSONC_TAG := json-c-0.17-20230812
+$(JSONC_TAG).tar.gz:
+	curl -L -o $@ https://github.com/json-c/json-c/archive/refs/tags/$(JSONC_TAG).tar.gz
+$(JSONC_TAG)/CMakeLists.txt: $(JSONC_TAG).tar.gz
+	mkdir -p $(JSONC_TAG) && tar xzf $< -C $(JSONC_TAG) --strip-components=1 && touch $@
+$(INSTALL_PREFIX)/lib/libjson-c.so: $(JSONC_TAG)/CMakeLists.txt
+	mkdir -p $(JSONC_TAG)/build && cd $(JSONC_TAG)/build && cmake .. $(CMAKE_FLAGS) && $(MAKE) -j && $(MAKE) install
 
-$(JSONC_DIR)/CMakeLists.txt: $(JSONC_DIR).tar.gz
-	mkdir -p $(JSONC_DIR)
-	tar xzf $(JSONC_DIR).tar.gz -C $(JSONC_DIR) --strip-components=1
-	touch $(JSONC_DIR)/CMakeLists.txt
+# PROJ 9.3.1
+PROJ_VER := 9.3.1
+proj-$(PROJ_VER).tar.gz:
+	curl -L -o $@ https://github.com/OSGeo/PROJ/releases/download/$(PROJ_VER)/proj-$(PROJ_VER).tar.gz
+proj-$(PROJ_VER)/CMakeLists.txt: proj-$(PROJ_VER).tar.gz
+	mkdir -p proj-$(PROJ_VER) && tar xzf $< -C proj-$(PROJ_VER) --strip-components=1 && touch $@
+$(INSTALL_PREFIX)/lib/libproj.so: proj-$(PROJ_VER)/CMakeLists.txt
+	mkdir -p proj-$(PROJ_VER)/build && cd proj-$(PROJ_VER)/build && cmake .. $(CMAKE_FLAGS) && $(MAKE) -j && $(MAKE) install
 
-$(INSTALL_PREFIX)/lib/libjson-c.so: $(JSONC_DIR)/CMakeLists.txt
-	mkdir -p $(JSONC_DIR)/build
-	cd $(JSONC_DIR)/build && cmake .. -DCMAKE_INSTALL_PREFIX=$(INSTALL_PREFIX) -DBUILD_SHARED_LIBS=ON
-	$(MAKE) -C $(JSONC_DIR)/build -j
-	$(MAKE) -C $(JSONC_DIR)/build install
+# GEOS 3.12.1
+GEOS_VER := 3.12.1
+geos-$(GEOS_VER).tar.bz2:
+	curl -L -o $@ https://github.com/libgeos/geos/releases/download/$(GEOS_VER)/geos-$(GEOS_VER).tar.bz2
+geos-$(GEOS_VER)/CMakeLists.txt: geos-$(GEOS_VER).tar.bz2
+	mkdir -p geos-$(GEOS_VER) && tar xjf $< -C geos-$(GEOS_VER) --strip-components=1 && touch $@
+$(INSTALL_PREFIX)/lib/libgeos.so: geos-$(GEOS_VER)/CMakeLists.txt
+	mkdir -p geos-$(GEOS_VER)/build && cd geos-$(GEOS_VER)/build && cmake .. $(CMAKE_FLAGS) && $(MAKE) -j && $(MAKE) install
 
-.PHONY: jsonc
-jsonc: $(INSTALL_PREFIX)/lib/libjson-c.so
-
-### PROJ (dependency for PostGIS)
-PROJ_VERSION := 9.3.1
-PROJ_URL := https://github.com/OSGeo/PROJ/releases/download/$(PROJ_VERSION)/proj-$(PROJ_VERSION).tar.gz
-PROJ_DIR := proj-$(PROJ_VERSION)
-
-$(PROJ_DIR).tar.gz:
-	curl -L -o $(PROJ_DIR).tar.gz $(PROJ_URL)
-
-$(PROJ_DIR)/CMakeLists.txt: $(PROJ_DIR).tar.gz
-	mkdir -p $(PROJ_DIR)
-	tar xzf $(PROJ_DIR).tar.gz -C $(PROJ_DIR) --strip-components=1
-	touch $(PROJ_DIR)/CMakeLists.txt
-
-$(INSTALL_PREFIX)/lib/libproj.so: $(PROJ_DIR)/CMakeLists.txt
-	mkdir -p $(PROJ_DIR)/build
-	cd $(PROJ_DIR)/build && cmake .. -DCMAKE_INSTALL_PREFIX=$(INSTALL_PREFIX) -DBUILD_SHARED_LIBS=ON -DBUILD_TESTING=OFF
-	$(MAKE) -C $(PROJ_DIR)/build -j
-	$(MAKE) -C $(PROJ_DIR)/build install
-
-.PHONY: proj
-proj: $(INSTALL_PREFIX)/lib/libproj.so
-
-### GEOS (dependency for PostGIS)
-GEOS_VERSION := 3.12.1
-GEOS_URL := https://github.com/libgeos/geos/releases/download/$(GEOS_VERSION)/geos-$(GEOS_VERSION).tar.bz2
-GEOS_DIR := geos-$(GEOS_VERSION)
-
-$(GEOS_DIR).tar.bz2:
-	curl -L -o $(GEOS_DIR).tar.bz2 $(GEOS_URL)
-
-$(GEOS_DIR)/CMakeLists.txt: $(GEOS_DIR).tar.bz2
-	mkdir -p $(GEOS_DIR)
-	tar xjf $(GEOS_DIR).tar.bz2 -C $(GEOS_DIR) --strip-components=1
-	touch $(GEOS_DIR)/CMakeLists.txt
-
-$(INSTALL_PREFIX)/lib/libgeos.so: $(GEOS_DIR)/CMakeLists.txt
-	mkdir -p $(GEOS_DIR)/build
-	cd $(GEOS_DIR)/build && cmake .. -DCMAKE_INSTALL_PREFIX=$(INSTALL_PREFIX) -DBUILD_SHARED_LIBS=ON -DBUILD_TESTING=OFF
-	$(MAKE) -C $(GEOS_DIR)/build -j
-	$(MAKE) -C $(GEOS_DIR)/build install
-
-.PHONY: geos
-geos: $(INSTALL_PREFIX)/lib/libgeos.so
-
-### PostGIS
-POSTGIS_VERSION := 3.4.2
-POSTGIS_URL := https://github.com/postgis/postgis/archive/refs/tags/$(POSTGIS_VERSION).tar.gz
-POSTGIS_DIR := postgis-$(POSTGIS_VERSION)
-
-$(POSTGIS_DIR).tar.gz:
-	curl -L -o $(POSTGIS_DIR).tar.gz $(POSTGIS_URL)
-
-$(POSTGIS_DIR)/configure.ac: $(POSTGIS_DIR).tar.gz
-	mkdir -p $(POSTGIS_DIR)
-	tar xzf $(POSTGIS_DIR).tar.gz -C $(POSTGIS_DIR) --strip-components=1
-	touch $(POSTGIS_DIR)/configure.ac
-
-$(POSTGIS_DIR)/configure: $(POSTGIS_DIR)/configure.ac
-	cd $(POSTGIS_DIR) && ./autogen.sh
-
-$(INSTALL_PREFIX)/lib/postgis-3.so: $(POSTGIS_DIR)/configure $(INSTALL_PREFIX)/bin/postgres jsonc proj geos
-	cd $(POSTGIS_DIR) && ./configure \
-		--prefix=$(INSTALL_PREFIX) \
-		--with-pgconfig=$(INSTALL_PREFIX)/bin/pg_config \
-		--with-projdir=$(INSTALL_PREFIX) \
-		--with-geosconfig=$(INSTALL_PREFIX)/bin/geos-config \
-		--with-jsondir=$(INSTALL_PREFIX) \
-		--without-raster \
-		--without-topology
-	unset MAKELEVEL && unset MAKEFLAGS && unset MFLAGS && $(MAKE) -C $(POSTGIS_DIR) -j
-	unset MAKELEVEL && unset MAKEFLAGS && unset MFLAGS && $(MAKE) -C $(POSTGIS_DIR) install
+# PostGIS 3.4.2
+POSTGIS_VER := 3.4.2
+postgis-$(POSTGIS_VER).tar.gz:
+	curl -L -o $@ https://github.com/postgis/postgis/archive/refs/tags/$(POSTGIS_VER).tar.gz
+postgis-$(POSTGIS_VER)/configure.ac: postgis-$(POSTGIS_VER).tar.gz
+	mkdir -p postgis-$(POSTGIS_VER) && tar xzf $< -C postgis-$(POSTGIS_VER) --strip-components=1 && touch $@
+postgis-$(POSTGIS_VER)/configure: postgis-$(POSTGIS_VER)/configure.ac
+	cd postgis-$(POSTGIS_VER) && ./autogen.sh
+$(INSTALL_PREFIX)/lib/postgis-3.so: postgis-$(POSTGIS_VER)/configure $(INSTALL_PREFIX)/bin/postgres $(INSTALL_PREFIX)/lib/libjson-c.so $(INSTALL_PREFIX)/lib/libproj.so $(INSTALL_PREFIX)/lib/libgeos.so
+	cd postgis-$(POSTGIS_VER) && ./configure --prefix=$(INSTALL_PREFIX) --with-pgconfig=$(INSTALL_PREFIX)/bin/pg_config \
+		--with-projdir=$(INSTALL_PREFIX) --with-geosconfig=$(INSTALL_PREFIX)/bin/geos-config --with-jsondir=$(INSTALL_PREFIX) \
+		--without-raster --without-topology
+	unset MAKELEVEL && unset MAKEFLAGS && unset MFLAGS && $(MAKE) -C postgis-$(POSTGIS_VER) -j && $(MAKE) -C postgis-$(POSTGIS_VER) install
 
 .PHONY: postgis
-postgis: postgres jsonc proj geos $(INSTALL_PREFIX)/lib/postgis-3.so
+postgis: $(INSTALL_PREFIX)/lib/postgis-3.so
 
 ### other
 .PHONY: clean clean-all
 clean:
-	rm -rf $(INSTALL_PREFIX)
-	rm -rf $(POSTGRES_SRC)
-	rm -rf $(POSTGRES_BLD)
-	rm -rf $(PGVECTOR_DIR)
-	rm -rf $(JSONC_DIR)
-	rm -rf $(PROJ_DIR)
-	rm -rf $(GEOS_DIR)
-	rm -rf $(POSTGIS_DIR)
+	rm -rf $(INSTALL_PREFIX) $(POSTGRES_SRC) $(POSTGRES_BLD) $(PGVECTOR_DIR)
+	rm -rf $(JSONC_TAG) proj-$(PROJ_VER) geos-$(GEOS_VER) postgis-$(POSTGIS_VER)
 
 clean-all: clean
 	rm -rf *.tar.gz *.tar.bz2
