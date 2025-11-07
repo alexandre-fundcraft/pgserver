@@ -62,40 +62,33 @@ $(INSTALL_PREFIX)/lib/vector.so: $(PGVECTOR_DIR)/Makefile $(INSTALL_PREFIX)/bin/
 pgvector: postgres $(INSTALL_PREFIX)/lib/vector.so
 
 ### PostGIS dependencies and extension
-# Using stable versions commonly built together
 CMAKE_FLAGS := -DCMAKE_INSTALL_PREFIX=$(INSTALL_PREFIX) -DBUILD_SHARED_LIBS=ON -DBUILD_TESTING=OFF
 
-# JSON-C 0.16 (stable, widely compatible)
+# JSON-C 0.16
 JSONC_VER := 0.16
 JSONC_TAG := json-c-$(JSONC_VER)-20220414
 $(JSONC_TAG).tar.gz:
 	curl -L -o $@ https://github.com/json-c/json-c/archive/refs/tags/$(JSONC_TAG).tar.gz
 $(JSONC_TAG)/CMakeLists.txt: $(JSONC_TAG).tar.gz
-	mkdir -p $(JSONC_TAG) && tar xzf $< -C $(JSONC_TAG) --strip-components=1
-	sed -i 's/cmake_minimum_required(VERSION [^)]*)/cmake_minimum_required(VERSION 3.5)/' $(JSONC_TAG)/CMakeLists.txt
-	touch $@
+	mkdir -p $(JSONC_TAG) && tar xzf $< -C $(JSONC_TAG) --strip-components=1 && touch $@
 $(INSTALL_PREFIX)/lib/libjson-c.so: $(JSONC_TAG)/CMakeLists.txt
-	mkdir -p $(JSONC_TAG)/build && cd $(JSONC_TAG)/build && cmake .. $(CMAKE_FLAGS) && $(MAKE) -j && $(MAKE) install
+	mkdir -p $(JSONC_TAG)/build && cd $(JSONC_TAG)/build && cmake .. $(CMAKE_FLAGS) -DBUILD_APPS=OFF && $(MAKE) -j && $(MAKE) install
 
-# PROJ 8.2.1 (stable, widely used)
+# PROJ 8.2.1
 PROJ_VER := 8.2.1
 proj-$(PROJ_VER).tar.gz:
 	curl -L -o $@ https://github.com/OSGeo/PROJ/releases/download/$(PROJ_VER)/proj-$(PROJ_VER).tar.gz
 proj-$(PROJ_VER)/CMakeLists.txt: proj-$(PROJ_VER).tar.gz
-	mkdir -p proj-$(PROJ_VER) && tar xzf $< -C proj-$(PROJ_VER) --strip-components=1
-	sed -i 's/cmake_minimum_required(VERSION [^)]*)/cmake_minimum_required(VERSION 3.5)/' proj-$(PROJ_VER)/CMakeLists.txt proj-$(PROJ_VER)/cmake/Ccache.cmake 2>/dev/null || true
-	touch $@
+	mkdir -p proj-$(PROJ_VER) && tar xzf $< -C proj-$(PROJ_VER) --strip-components=1 && touch $@
 $(INSTALL_PREFIX)/lib/libproj.so: proj-$(PROJ_VER)/CMakeLists.txt
 	mkdir -p proj-$(PROJ_VER)/build && cd proj-$(PROJ_VER)/build && cmake .. $(CMAKE_FLAGS) && $(MAKE) -j && $(MAKE) install
 
-# GEOS 3.11.2 (stable, commonly used with PostGIS 3.4)
+# GEOS 3.11.2
 GEOS_VER := 3.11.2
 geos-$(GEOS_VER).tar.bz2:
 	curl -L -o $@ https://github.com/libgeos/geos/releases/download/$(GEOS_VER)/geos-$(GEOS_VER).tar.bz2
 geos-$(GEOS_VER)/CMakeLists.txt: geos-$(GEOS_VER).tar.bz2
-	mkdir -p geos-$(GEOS_VER) && tar xjf $< -C geos-$(GEOS_VER) --strip-components=1
-	sed -i 's/cmake_minimum_required(VERSION [^)]*)/cmake_minimum_required(VERSION 3.5)/' geos-$(GEOS_VER)/CMakeLists.txt
-	touch $@
+	mkdir -p geos-$(GEOS_VER) && tar xjf $< -C geos-$(GEOS_VER) --strip-components=1 && touch $@
 $(INSTALL_PREFIX)/lib/libgeos.so: geos-$(GEOS_VER)/CMakeLists.txt
 	mkdir -p geos-$(GEOS_VER)/build && cd geos-$(GEOS_VER)/build && cmake .. $(CMAKE_FLAGS) && $(MAKE) -j && $(MAKE) install
 
