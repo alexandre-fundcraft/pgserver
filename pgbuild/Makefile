@@ -76,8 +76,8 @@ $(INSTALL_PREFIX)/lib/libjson-c.so: $(JSONC_TAG)/CMakeLists.txt
 	mkdir -p $(JSONC_TAG)/build && cd $(JSONC_TAG)/build && cmake .. $(CMAKE_FLAGS) -DBUILD_APPS=OFF && $(MAKE) -j && $(MAKE) install
 	@echo "======== JSON-C build complete ========"
 
-# PROJ 9.7.0
-PROJ_VER := 9.7.0
+# PROJ 9.3.1
+PROJ_VER := 9.3.1
 proj-$(PROJ_VER).tar.gz:
 	curl -L -o $@ https://github.com/OSGeo/PROJ/releases/download/$(PROJ_VER)/proj-$(PROJ_VER).tar.gz
 proj-$(PROJ_VER)/CMakeLists.txt: proj-$(PROJ_VER).tar.gz
@@ -87,8 +87,8 @@ $(INSTALL_PREFIX)/lib/libproj.so: proj-$(PROJ_VER)/CMakeLists.txt
 	mkdir -p proj-$(PROJ_VER)/build && cd proj-$(PROJ_VER)/build && cmake .. $(CMAKE_FLAGS) -DBUILD_APPS=OFF -DENABLE_TIFF=OFF -DENABLE_CURL=OFF && $(MAKE) -j && $(MAKE) install
 	@echo "======== PROJ build complete ========"
 
-# GEOS 3.14.1
-GEOS_VER := 3.14.1
+# GEOS 3.12.1
+GEOS_VER := 3.12.1
 geos-$(GEOS_VER).tar.bz2:
 	curl -L -o $@ https://github.com/libgeos/geos/releases/download/$(GEOS_VER)/geos-$(GEOS_VER).tar.bz2
 geos-$(GEOS_VER)/CMakeLists.txt: geos-$(GEOS_VER).tar.bz2
@@ -98,8 +98,8 @@ $(INSTALL_PREFIX)/lib/libgeos.so: geos-$(GEOS_VER)/CMakeLists.txt
 	mkdir -p geos-$(GEOS_VER)/build && cd geos-$(GEOS_VER)/build && cmake .. $(CMAKE_FLAGS) && $(MAKE) -j && $(MAKE) install
 	@echo "======== GEOS build complete ========"
 
-# PostGIS 3.6.0
-POSTGIS_VER := 3.6.0
+# PostGIS 3.4.2
+POSTGIS_VER := 3.4.2
 postgis-$(POSTGIS_VER).tar.gz:
 	curl -L -o $@ https://github.com/postgis/postgis/archive/refs/tags/$(POSTGIS_VER).tar.gz
 postgis-$(POSTGIS_VER)/configure.ac: postgis-$(POSTGIS_VER).tar.gz
