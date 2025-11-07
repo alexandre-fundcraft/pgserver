@@ -12,6 +12,9 @@ keywords=["postgresql", "pgvector"]
 where = ["src"]
 include = ["pgserver_binaries*"]
 
+[tool.setuptools.package-data]
+pgserver_binaries = ["**/*"]
+
 [tool.cibuildwheel]
 before-all = "cd ../../ && PGSERVER_VERSION=18 make -C pgbuild"
 environment = {PGSERVER_VERSION="18"}
