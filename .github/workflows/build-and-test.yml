@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-12
+          - os: macos-13-large
             arch: x86_64
             deployment-target: '10.9'
           - os: macos-latest
@@ -93,7 +93,7 @@ jobs:
            src/pgserver/pginstall
           key: ${{ runner.os }}-${{ runner.arch }}-build-${{ env.cache-name }}-${{
             hashFiles('Makefile', 'pgbuild/Makefile', '.github/workflows/build-and-test.yml') }}
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           path: wheelhouse/*.whl
           name: python-package-distributions
@@ -110,7 +110,7 @@ jobs:
       id-token: write  # IMPORTANT: mandatory for trusted publishing
     steps:
         - name: Download all the dists
-          uses: actions/download-artifact@v3
+          uses: actions/download-artifact@v4
           with:
             name: python-package-distributions
             path: dist/
