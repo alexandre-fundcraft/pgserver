@@ -64,20 +64,17 @@ def tmp_postgres():
 
 ## PostgreSQL Version Selection
 
-`pgserver` supports PostgreSQL versions 16, 17, and 18.
+`pgserver` supports PostgreSQL versions 16, 17, and 18 with **pre-built wheels** for all versions:
 
-**Pre-built wheels** are available for PostgreSQL 18 (latest stable):
 ```bash
+# PostgreSQL 18 (latest, default)
 pip install pgserver
-```
 
-**For PostgreSQL 16 or 17**, install from source (requires build tools):
-```bash
 # PostgreSQL 16
-PGSERVER_VERSION=16 pip install --no-binary pgserver pgserver
+pip install "pgserver[pg16]"
 
 # PostgreSQL 17
-PGSERVER_VERSION=17 pip install --no-binary pgserver pgserver
+pip install "pgserver[pg17]"
 ```
 
 Check which version is installed:
@@ -85,6 +82,8 @@ Check which version is installed:
 import pgserver
 print(f"PostgreSQL version: {pgserver.INSTALLED_POSTGRES_VERSION}")
 ```
+
+**How it works:** The main `pgserver` package contains only Python code. PostgreSQL binaries are provided by separate packages (`pgserver-postgres-16`, `pgserver-postgres-17`, `pgserver-postgres-18`) which are automatically installed based on the extra you choose.
 
 Postgres binaries in the package can be found in the directory pointed
 to by the `pgserver.POSTGRES_BIN_PATH` to be used directly.

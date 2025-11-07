@@ -1,36 +1,50 @@
 from pathlib import Path
 import sys
 import subprocess
-from typing import Optional, List, Callable
+from typing import Optional, List, Callable, Tuple
 import logging
 import tempfile
+import site
 
-# Base path for PostgreSQL installation
-POSTGRES_INSTALL_BASE = Path(__file__).parent / "pginstall"
-POSTGRES_BIN_PATH = POSTGRES_INSTALL_BASE / "bin"
-
-def _detect_installed_version() -> Optional[int]:
-    """Detect which PostgreSQL version is installed by reading PG_VERSION file.
+def _find_postgres_binaries() -> Tuple[Optional[Path], Optional[int]]:
+    """Find PostgreSQL binaries installed by pgserver-postgres-* packages.
 
     Returns:
-        The major version number, or None if not found
+        Tuple of (bin_path, version_number) or (None, None) if not found
     """
-    version_file = POSTGRES_INSTALL_BASE / "share" / "postgresql" / "PG_VERSION"
-    if not version_file.exists():
-        return None
+    # Check all site-packages directories for pgserver_binaries
+    for site_dir in site.getsitepackages() + [site.getusersitepackages()]:
+        if not site_dir:
+            continue
 
-    try:
-        version_str = version_file.read_text().strip()
-        # PG_VERSION contains just the major version number (e.g., "16", "17", "18")
-        return int(version_str)
-    except (ValueError, OSError):
-        return None
+        binaries_base = Path(site_dir) / "pgserver_binaries"
+        if not binaries_base.exists():
+            continue
 
-# Detect installed version
-INSTALLED_POSTGRES_VERSION = _detect_installed_version()
+        # Look for pg16, pg17, or pg18 directories
+        for pg_dir in binaries_base.glob("pg*"):
+            if not pg_dir.is_dir():
+                continue
 
-# For backward compatibility, expose these constants
-# They will be None if no PostgreSQL is installed (which shouldn't happen in a valid package)
+            bin_path = pg_dir / "bin"
+            if not bin_path.exists():
+                continue
+
+            # Extract version number from directory name (e.g., "pg16" -> 16)
+            try:
+                version = int(pg_dir.name[2:])
+                # Verify this is a valid PostgreSQL installation
+                if (bin_path / "postgres").exists() or (bin_path / "postgres.exe").exists():
+                    return (bin_path, version)
+            except (ValueError, IndexError):
+                continue
+
+    return (None, None)
+
+# Find installed PostgreSQL binaries
+POSTGRES_BIN_PATH, INSTALLED_POSTGRES_VERSION = _find_postgres_binaries()
+
+# For backward compatibility
 DEFAULT_POSTGRES_VERSION = INSTALLED_POSTGRES_VERSION
 AVAILABLE_POSTGRES_VERSIONS = [INSTALLED_POSTGRES_VERSION] if INSTALLED_POSTGRES_VERSION else []
 
@@ -43,10 +57,11 @@ def get_postgres_bin_path() -> Path:
     Raises:
         FileNotFoundError: If PostgreSQL binaries are not found
     """
-    if not POSTGRES_BIN_PATH.exists():
+    if POSTGRES_BIN_PATH is None or not POSTGRES_BIN_PATH.exists():
         raise FileNotFoundError(
-            f"PostgreSQL binaries not found at {POSTGRES_BIN_PATH}. "
-            "The package may not have been installed correctly."
+            "PostgreSQL binaries not found. "
+            "Please install one of the binary packages: "
+            "pgserver-postgres-16, pgserver-postgres-17, or pgserver-postgres-18"
         )
 
     return POSTGRES_BIN_PATH
