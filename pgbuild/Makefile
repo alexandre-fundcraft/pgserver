@@ -72,7 +72,7 @@ $(JSONC_TAG).tar.gz:
 $(JSONC_TAG)/CMakeLists.txt: $(JSONC_TAG).tar.gz
 	mkdir -p $(JSONC_TAG) && tar xzf $< -C $(JSONC_TAG) --strip-components=1 && touch $@
 $(INSTALL_PREFIX)/lib/libjson-c.so: $(JSONC_TAG)/CMakeLists.txt
-	mkdir -p $(JSONC_TAG)/build && cd $(JSONC_TAG)/build && cmake .. $(CMAKE_FLAGS) && $(MAKE) -j && $(MAKE) install
+	mkdir -p $(JSONC_TAG)/build && cd $(JSONC_TAG)/build && cmake .. $(CMAKE_FLAGS) -DBUILD_APPS=OFF && $(MAKE) -j && $(MAKE) install
 
 # PROJ 8.2.1
 PROJ_VER := 8.2.1
