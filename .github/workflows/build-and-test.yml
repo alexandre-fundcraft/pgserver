@@ -41,7 +41,7 @@ jobs:
 
   # Build binary packages for each PostgreSQL version
   build_binary_wheels:
-    name: Build ${{ matrix.package }} on ${{ matrix.os }}
+    name: Build ${{ matrix.package }} on ${{ matrix.platform }}
     runs-on: ${{ matrix.os }}
     needs: build_main_package  # Build main package first
     strategy:
@@ -49,6 +49,15 @@ jobs:
       matrix:
         package: [pgserver-postgres-16, pgserver-postgres-17, pgserver-postgres-18]
         os: [ubuntu-latest, macos-12, macos-14, windows-latest]
+        include:
+          - os: ubuntu-latest
+            platform: linux-x86_64
+          - os: macos-12
+            platform: macos-x86_64
+          - os: macos-14
+            platform: macos-arm64
+          - os: windows-latest
+            platform: windows-amd64
     steps:
       - uses: actions/checkout@v4
 
@@ -66,6 +75,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y patchelf
+
+      - name: Install bison (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install -y winflexbison3
 
       - name: Extract PostgreSQL version from package name
         id: pg-version
@@ -106,7 +120,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           path: packages/${{ matrix.package }}/dist/*.whl
-          name: binary-wheels-${{ matrix.package }}-${{ matrix.os }}
+          name: binary-wheels-${{ matrix.package }}-${{ matrix.platform }}
 
   # Publish to PyPI
   publish-to-pypi:
