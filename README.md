@@ -1,5 +1,5 @@
 ![Python Version](https://img.shields.io/badge/python-3.9%2C%203.10%2C%203.11%2C%203.12-blue)
-![Postgres Version](https://img.shields.io/badge/PostgreSQL-16.2-blue)
+![Postgres Version](https://img.shields.io/badge/PostgreSQL-16%20%7C%2017%20%7C%2018-blue)
 
 ![Linux Support](https://img.shields.io/badge/Linux%20Support-manylinux-green)
 ![macOS Apple Silicon Support >=11](https://img.shields.io/badge/macOS%20Apple%20Silicon%20Support-%E2%89%A511(BigSur)-green)
@@ -62,8 +62,38 @@ def tmp_postgres():
     pg.cleanup()
 ```
 
+## PostgreSQL Version Selection
+
+`pgserver` includes support for multiple PostgreSQL versions (16, 17, and 18). By default, PostgreSQL 18 is used, but you can select a specific version:
+
+```py
+# Example 3: Using a specific PostgreSQL version
+import pgserver
+
+# Use PostgreSQL 16
+db16 = pgserver.get_server('/path/to/pg16_data', postgres_version=16)
+
+# Use PostgreSQL 17
+db17 = pgserver.get_server('/path/to/pg17_data', postgres_version=17)
+
+# Use PostgreSQL 18 (default)
+db18 = pgserver.get_server('/path/to/pg18_data', postgres_version=18)
+# or simply:
+db = pgserver.get_server('/path/to/data')  # defaults to version 18
+```
+
+You can also check available versions programmatically:
+
+```py
+import pgserver
+
+print(f"Available versions: {pgserver.AVAILABLE_POSTGRES_VERSIONS}")
+print(f"Default version: {pgserver.DEFAULT_POSTGRES_VERSION}")
+```
+
 Postgres binaries in the package can be found in the directory pointed
-to by the `pgserver.POSTGRES_BIN_PATH` to be used directly.
+to by the `pgserver.POSTGRES_BIN_PATH` to be used directly (defaults to PostgreSQL 18).
+For version-specific binaries, use `pgserver.get_postgres_bin_path(version)`.
 
 This project was originally based on [](https://github.com/michelp/postgresql-wheel), which provides a linux wheel.
 But adds the following differences:

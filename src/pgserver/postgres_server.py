@@ -9,7 +9,7 @@ import platform
 import psutil
 import time
 
-from ._commands import POSTGRES_BIN_PATH, initdb, pg_ctl
+from ._commands import get_postgres_bin_path, DEFAULT_POSTGRES_VERSION, initdb, pg_ctl
 from .utils import find_suitable_port, find_suitable_socket_dir, DiskList, PostmasterInfo, process_is_running
 
 if platform.system() != 'Windows':
@@ -31,14 +31,21 @@ class PostgresServer:
     lock_path = platformdirs.user_runtime_path('python_PostgresServer') / '.lockfile'
     _lock  = fasteners.InterProcessLock(lock_path)
 
-    def __init__(self, pgdata : Path, *, cleanup_mode : Optional[str] = 'stop'):
+    def __init__(self, pgdata : Path, *, cleanup_mode : Optional[str] = 'stop', postgres_version: int = DEFAULT_POSTGRES_VERSION):
         """ Initializes the postgresql server instance.
             Constructor is intended to be called directly, use get_server() instead.
+
+            Args:
+                pgdata: Path to the PostgreSQL data directory
+                cleanup_mode: How to clean up when the server is stopped ('stop', 'delete', or None)
+                postgres_version: PostgreSQL major version to use (16, 17, or 18). Defaults to 18.
         """
         assert cleanup_mode in [None, 'stop', 'delete']
 
         self.pgdata = pgdata
         self.log = self.pgdata / 'log'
+        self.postgres_version = postgres_version
+        self.postgres_bin_path = get_postgres_bin_path(postgres_version)
 
         # postgres user name, NB not the same as system user name
         self.system_user = None
@@ -88,13 +95,13 @@ class PostgresServer:
             import stat
             assert self.system_user is not None
             ensure_prefix_permissions(self.pgdata)
-            ensure_prefix_permissions(POSTGRES_BIN_PATH)
+            ensure_prefix_permissions(self.postgres_bin_path)
 
             read_perm = stat.S_IRGRP | stat.S_IROTH
             execute_perm = stat.S_IXGRP | stat.S_IXOTH
             # for envs like cibuildwheel docker, where the user is has no permission otherwise
-            ensure_folder_permissions(POSTGRES_BIN_PATH, execute_perm | read_perm)
-            ensure_folder_permissions(POSTGRES_BIN_PATH.parent / 'lib', read_perm)
+            ensure_folder_permissions(self.postgres_bin_path, execute_perm | read_perm)
+            ensure_folder_permissions(self.postgres_bin_path.parent / 'lib', read_perm)
 
 
             os.chown(self.pgdata, pwd.getpwnam(self.system_user).pw_uid,
@@ -126,7 +133,7 @@ class PostgresServer:
                         assert not proc.is_running()
 
             initdb(['--auth=trust', '--auth-local=trust', '--encoding=utf8', '-U', self.postgres_user], pgdata=self.pgdata,
-                    user=self.system_user)
+                    postgres_version=self.postgres_version, user=self.system_user)
         else:
             _logger.info('PG_VERSION file found, skipping initdb')
 
@@ -173,7 +180,7 @@ class PostgresServer:
 
             try:
                 _logger.info(f"running pg_ctl... {pg_ctl_args=}")
-                pg_ctl(pg_ctl_args,pgdata=self.pgdata, user=self.system_user, timeout=10)
+                pg_ctl(pg_ctl_args, pgdata=self.pgdata, postgres_version=self.postgres_version, user=self.system_user, timeout=10)
             except subprocess.CalledProcessError as err:
                 _logger.error(f"Failed to start server.\nShowing contents of postgres server log ({self.log.absolute()}) below:\n{self.log.read_text()}")
                 raise err
@@ -217,7 +224,7 @@ class PostgresServer:
             if self._postmaster_info is not None:
                 if self._postmaster_info.process.is_running():
                     try:
-                        pg_ctl(['-w', 'stop'], pgdata=self.pgdata, user=self.system_user)
+                        pg_ctl(['-w', 'stop'], pgdata=self.pgdata, postgres_version=self.postgres_version, user=self.system_user)
                         stopped = True
                     except subprocess.CalledProcessError:
                         stopped = False
@@ -243,7 +250,7 @@ class PostgresServer:
     def psql(self, command : str) -> str:
         """ Runs a psql command on this server. The command is passed to psql via stdin.
         """
-        executable = POSTGRES_BIN_PATH / 'psql'
+        executable = self.postgres_bin_path / 'psql'
         stdout = subprocess.check_output(f'{executable} {self.get_uri()}',
                                          input=command.encode(), shell=True)
         return stdout.decode("utf-8")
@@ -263,17 +270,25 @@ class PostgresServer:
         self._cleanup()
 
 
-def get_server(pgdata : Union[Path,str] , cleanup_mode : Optional[str] = 'stop' ) -> PostgresServer:
+def get_server(pgdata : Union[Path,str], cleanup_mode : Optional[str] = 'stop', postgres_version: int = DEFAULT_POSTGRES_VERSION) -> PostgresServer:
     """ Returns handle to postgresql server instance for the given pgdata directory.
     Args:
-        pgdata: pddata directory. If the pgdata directory does not exist, it will be created, but its
-        parent must exists and be a valid directory.
+        pgdata: pgdata directory. If the pgdata directory does not exist, it will be created, but its
+        parent must exist and be a valid directory.
         cleanup_mode: If 'stop', the server will be stopped when the last handle is closed (default)
                         If 'delete', the server will be stopped and the pgdata directory will be deleted.
                         If None, the server will not be stopped or deleted.
+        postgres_version: PostgreSQL major version to use (16, 17, or 18). Defaults to 18.
 
         To create a temporary server, use mkdtemp() to create a temporary directory and pass it as pg_data,
         and set cleanup_mode to 'delete'.
+
+    Example:
+        # Use default PostgreSQL 18
+        db = get_server('/path/to/data')
+
+        # Use PostgreSQL 16
+        db = get_server('/path/to/data', postgres_version=16)
     """
     if isinstance(pgdata, str):
         pgdata = Path(pgdata)
@@ -286,6 +301,13 @@ def get_server(pgdata : Union[Path,str] , cleanup_mode : Optional[str] = 'stop' 
         pgdata.mkdir(parents=False, exist_ok=False)
 
     if pgdata in PostgresServer._instances:
-        return PostgresServer._instances[pgdata]
+        existing = PostgresServer._instances[pgdata]
+        if existing.postgres_version != postgres_version:
+            raise ValueError(
+                f"An instance for {pgdata} already exists with PostgreSQL version {existing.postgres_version}, "
+                f"but version {postgres_version} was requested. "
+                "Close the existing instance before creating a new one with a different version."
+            )
+        return existing
 
-    return PostgresServer(pgdata, cleanup_mode=cleanup_mode)
+    return PostgresServer(pgdata, cleanup_mode=cleanup_mode, postgres_version=postgres_version)
