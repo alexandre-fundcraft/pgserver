@@ -13,12 +13,16 @@ on:
 jobs:
   # Build binary packages for each PostgreSQL version
   build_binary_wheels:
-    name: Build ${{ matrix.package }} on ubuntu-latest
-    runs-on: ubuntu-latest
+    name: Build ${{ matrix.package }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         package: [pgserver-postgres-16, pgserver-postgres-17, pgserver-postgres-18]
+        os: [ubuntu-latest, macos-12, macos-14, windows-2022]
+        exclude:
+          # Temporarily exclude Windows until we test Linux/macOS first
+          - os: windows-2022
     steps:
       - uses: actions/checkout@v4
 
@@ -40,8 +44,19 @@ jobs:
           VERSION="${VERSION##*-}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Build binary package
+      - name: Build binary package (Unix)
+        if: runner.os != 'Windows'
         working-directory: packages/${{ matrix.package }}
+        env:
+          MACOSX_DEPLOYMENT_TARGET: ${{ runner.os == 'macOS' && (matrix.os == 'macos-14' && '11.0' || '10.9') || '' }}
+        run: |
+          make build
+          python -m build --wheel
+
+      - name: Build binary package (Windows)
+        if: runner.os == 'Windows'
+        working-directory: packages/${{ matrix.package }}
+        shell: bash
         run: |
           make build
           python -m build --wheel
@@ -50,7 +65,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           path: packages/${{ matrix.package }}/dist/*.whl
-          name: binary-wheels-${{ matrix.package }}
+          name: binary-wheels-${{ matrix.package }}-${{ matrix.os }}
 
   # Build main pgserver package (Python code only, no binaries)
   build_main_package:
