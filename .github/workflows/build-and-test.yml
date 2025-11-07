@@ -8,13 +8,16 @@ on:
     types:
       - created
   workflow_dispatch:
+
 jobs:
-  build_wheels:
-    name: Build wheels on ${{ matrix.os }}
+  # Build binary packages for each PostgreSQL version
+  build_binary_wheels:
+    name: Build ${{ matrix.package }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        package: [pgserver-postgres-16, pgserver-postgres-17, pgserver-postgres-18]
         include:
           - os: macos-12
             arch: x86_64
@@ -30,88 +33,138 @@ jobs:
             deployment-target: ''
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v4
         if: matrix.os != 'ubuntu-latest'
         with:
           python-version: '3.10'
+
       - uses: actions/setup-python@v4
         if: matrix.os == 'ubuntu-latest'
-          # for testing due to docker env issues
         with:
           python-version: '3.9'
+
       - name: Install cibuildwheel
         run: |
           python -m pip install --upgrade pip
-          python -m pip install --upgrade cibuildwheel
+          python -m pip install --upgrade cibuildwheel build
+
+      - name: Extract PostgreSQL version from package name
+        id: pg-version
+        shell: bash
+        run: |
+          # Extract version from package name (e.g., pgserver-postgres-16 -> 16)
+          VERSION="${{ matrix.package }}"
+          VERSION="${VERSION##*-}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
       - name: Restore postgres build from cache
         if: ${{ matrix.os != 'ubuntu-latest' }}
         id: restore-postgres
         uses: actions/cache/restore@v3
         env:
-          cache-name: cache-postgres
+          cache-name: cache-postgres-${{ steps.pg-version.outputs.version }}
         with:
           path: |
             pgbuild
             src/pgserver/pginstall
           key: ${{ runner.os }}-${{ runner.arch }}-build-${{ env.cache-name }}-${{
             hashFiles('Makefile', 'pgbuild/Makefile', '.github/workflows/build-and-test.yml') }}
+
       - name: Build postgres and pgvector
         if: ${{ matrix.os != 'ubuntu-latest' && ! steps.restore-postgres.outputs.cache-hit }}
         env:
           MACOSX_DEPLOYMENT_TARGET: ${{ matrix.deployment-target }}
-        # this step is implied by Build wheels, but we do it here for caching before python tests run
-        # on ubuntu, cibuildwheel will run this step within a docker container, so it cannot use the cache this way
-        run: make
+          PGSERVER_VERSION: ${{ steps.pg-version.outputs.version }}
+        run: make -C pgbuild
+
       - name: Save postgres build
         if: ${{ matrix.os != 'ubuntu-latest' && ! steps.restore-postgres.outputs.cache-hit }}
-        id: cache-postgres
         uses: actions/cache/save@v3
         env:
-          cache-name: cache-postgres
+          cache-name: cache-postgres-${{ steps.pg-version.outputs.version }}
         with:
           path: |
-           pgbuild
-           src/pgserver/pginstall
+            pgbuild
+            src/pgserver/pginstall
           key: ${{ runner.os }}-${{ runner.arch }}-build-${{ env.cache-name }}-${{
             hashFiles('Makefile', 'pgbuild/Makefile', '.github/workflows/build-and-test.yml') }}
-      - name: Build wheels
+
+      - name: Build binary package
+        working-directory: packages/${{ matrix.package }}
         env:
-          CIBW_ARCHS: ${{ matrix.arch }}
-          CIBW_SKIP: pp* cp38-* *-musllinux*
           MACOSX_DEPLOYMENT_TARGET: ${{ matrix.deployment-target }}
-        run: python -m cibuildwheel --output-dir wheelhouse
-      - name: Save postgres build
-        if: ${{ matrix.os == 'ubuntu-latest' && ! steps.restore-postgres.outputs.cache-hit }}
-        id: cache-postgres2
-        uses: actions/cache/save@v3
-        env:
-          cache-name: cache-postgres
+        run: |
+          # Copy built PostgreSQL to package directory
+          make build
+          # Build wheel
+          python -m build --wheel
+
+      - name: Upload binary package wheels
+        uses: actions/upload-artifact@v3
         with:
-          path: |
-           pgbuild
-           src/pgserver/pginstall
-          key: ${{ runner.os }}-${{ runner.arch }}-build-${{ env.cache-name }}-${{
-            hashFiles('Makefile', 'pgbuild/Makefile', '.github/workflows/build-and-test.yml') }}
-      - uses: actions/upload-artifact@v3
+          path: packages/${{ matrix.package }}/dist/*.whl
+          name: binary-wheels-${{ matrix.package }}
+
+  # Build main pgserver package (Python code only, no binaries)
+  build_main_package:
+    name: Build main pgserver package
+    runs-on: ubuntu-latest
+    needs: build_binary_wheels  # Ensure binary packages are built first
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
         with:
-          path: wheelhouse/*.whl
-          name: python-package-distributions
+          python-version: '3.10'
+
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --upgrade build
+
+      - name: Remove pginstall directory (main package shouldn't include binaries)
+        run: rm -rf src/pgserver/pginstall
+
+      - name: Build main package wheel
+        run: python -m build --wheel
+
+      - name: Upload main package wheel
+        uses: actions/upload-artifact@v3
+        with:
+          path: dist/*.whl
+          name: main-package-wheels
+
+  # Publish to PyPI
   publish-to-pypi:
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
-    name: Publish Python dist to PyPI
+    name: Publish to PyPI
     needs:
-      - build_wheels
+      - build_binary_wheels
+      - build_main_package
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/pgserver  # Replace <package-name> with your PyPI project name
+      url: https://pypi.org/p/pgserver
     permissions:
-      id-token: write  # IMPORTANT: mandatory for trusted publishing
+      id-token: write
     steps:
-        - name: Download all the dists
-          uses: actions/download-artifact@v3
-          with:
-            name: python-package-distributions
-            path: dist/
-        - name: Publish distribution 📦 to PyPI
-          uses: pypa/gh-action-pypi-publish@release/v1
+      - name: Download all binary wheels
+        uses: actions/download-artifact@v3
+        with:
+          path: dist/
+          pattern: binary-wheels-*
+
+      - name: Download main package wheels
+        uses: actions/download-artifact@v3
+        with:
+          path: dist/
+          name: main-package-wheels
+
+      - name: Flatten dist directory
+        run: |
+          find dist -name '*.whl' -exec mv {} dist/ \;
+          find dist -type d -empty -delete
+
+      - name: Publish all packages to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
