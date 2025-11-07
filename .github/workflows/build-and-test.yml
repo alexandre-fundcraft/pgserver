@@ -4,6 +4,7 @@ on:
     branches:
       - testing
       - main
+      - 'claude/**'  # Allow CI on claude/* branches for testing
   release:
     types:
       - created
