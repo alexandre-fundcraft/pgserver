@@ -1,54 +1,60 @@
 from pathlib import Path
 import sys
 import subprocess
-from typing import Optional, List, Callable, Dict
+from typing import Optional, List, Callable
 import logging
 import tempfile
 
-# Base path for PostgreSQL installations
+# Base path for PostgreSQL installation
 POSTGRES_INSTALL_BASE = Path(__file__).parent / "pginstall"
+POSTGRES_BIN_PATH = POSTGRES_INSTALL_BASE / "bin"
 
-# Default PostgreSQL version
-DEFAULT_POSTGRES_VERSION = 18
-
-# Available PostgreSQL versions
-AVAILABLE_POSTGRES_VERSIONS = [16, 17, 18]
-
-def get_postgres_bin_path(version: int = DEFAULT_POSTGRES_VERSION) -> Path:
-    """Get the binary path for a specific PostgreSQL version.
-
-    Args:
-        version: PostgreSQL major version (16, 17, or 18)
+def _detect_installed_version() -> Optional[int]:
+    """Detect which PostgreSQL version is installed by reading PG_VERSION file.
 
     Returns:
-        Path to the bin directory for the specified version
+        The major version number, or None if not found
+    """
+    version_file = POSTGRES_INSTALL_BASE / "share" / "postgresql" / "PG_VERSION"
+    if not version_file.exists():
+        return None
+
+    try:
+        version_str = version_file.read_text().strip()
+        # PG_VERSION contains just the major version number (e.g., "16", "17", "18")
+        return int(version_str)
+    except (ValueError, OSError):
+        return None
+
+# Detect installed version
+INSTALLED_POSTGRES_VERSION = _detect_installed_version()
+
+# For backward compatibility, expose these constants
+# They will be None if no PostgreSQL is installed (which shouldn't happen in a valid package)
+DEFAULT_POSTGRES_VERSION = INSTALLED_POSTGRES_VERSION
+AVAILABLE_POSTGRES_VERSIONS = [INSTALLED_POSTGRES_VERSION] if INSTALLED_POSTGRES_VERSION else []
+
+def get_postgres_bin_path() -> Path:
+    """Get the binary path for the installed PostgreSQL version.
+
+    Returns:
+        Path to the bin directory
 
     Raises:
-        ValueError: If the version is not supported
+        FileNotFoundError: If PostgreSQL binaries are not found
     """
-    if version not in AVAILABLE_POSTGRES_VERSIONS:
-        raise ValueError(
-            f"PostgreSQL version {version} is not supported. "
-            f"Available versions: {AVAILABLE_POSTGRES_VERSIONS}"
-        )
-
-    bin_path = POSTGRES_INSTALL_BASE / f"pg{version}" / "bin"
-
-    if not bin_path.exists():
+    if not POSTGRES_BIN_PATH.exists():
         raise FileNotFoundError(
-            f"PostgreSQL {version} binaries not found at {bin_path}. "
-            "The package may not have been built correctly."
+            f"PostgreSQL binaries not found at {POSTGRES_BIN_PATH}. "
+            "The package may not have been installed correctly."
         )
 
-    return bin_path
-
-# Keep backward compatibility - default to version 18
-POSTGRES_BIN_PATH = get_postgres_bin_path(DEFAULT_POSTGRES_VERSION)
+    return POSTGRES_BIN_PATH
 
 _logger = logging.getLogger('pgserver')
 
 def create_command_function(pg_exe_name : str) -> Callable:
-    def command(args : List[str], pgdata : Optional[Path] = None, postgres_version: int = DEFAULT_POSTGRES_VERSION, **kwargs) -> str:
+    def command(args : List[str], pgdata : Optional[Path] = None, **kwargs) -> str:
         """
             Run a command with the given command line arguments.
             Args:
@@ -56,7 +62,6 @@ def create_command_function(pg_exe_name : str) -> Callable:
                 a list of options as would be passed to `subprocess.run`
                 pgdata: The path to the data directory to use for the command.
                     If the command does not need a data directory, this should be None.
-                postgres_version: PostgreSQL major version to use (16, 17, or 18). Defaults to 18.
                 kwargs: Additional keyword arguments to pass to `subprocess.run`, eg user, timeout.
 
             Returns:
@@ -68,9 +73,7 @@ def create_command_function(pg_exe_name : str) -> Callable:
         if pgdata is not None:
             args = ["-D", str(pgdata)] + args
 
-        # Get the version-specific bin path
-        bin_path = get_postgres_bin_path(postgres_version)
-        full_command_line = [str(bin_path / pg_exe_name)] + args
+        full_command_line = [str(POSTGRES_BIN_PATH / pg_exe_name)] + args
 
         with tempfile.TemporaryFile('w+') as stdout, tempfile.TemporaryFile('w+') as stderr:
             try:
