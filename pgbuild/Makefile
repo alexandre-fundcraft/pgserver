@@ -68,7 +68,7 @@ ifeq ($(UNAME_S),Linux)
 		for binary in $(INSTALL_PREFIX)/bin/*; do \
 			if file "$$binary" | grep -q ELF; then \
 				echo "Setting RPATH for $$binary"; \
-				patchelf --set-rpath '$$ORIGIN/../lib' "$$binary" || true; \
+				patchelf --force-rpath --set-rpath '$$ORIGIN/../lib' "$$binary" || true; \
 			fi \
 		done; \
 	else \
