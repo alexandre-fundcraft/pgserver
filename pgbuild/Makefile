@@ -72,7 +72,9 @@ $(JSONC_TAG).tar.gz:
 $(JSONC_TAG)/CMakeLists.txt: $(JSONC_TAG).tar.gz
 	mkdir -p $(JSONC_TAG) && tar xzf $< -C $(JSONC_TAG) --strip-components=1 && touch $@
 $(INSTALL_PREFIX)/lib/libjson-c.so: $(JSONC_TAG)/CMakeLists.txt
+	@echo "======== Building JSON-C $(JSONC_VER) ========"
 	mkdir -p $(JSONC_TAG)/build && cd $(JSONC_TAG)/build && cmake .. $(CMAKE_FLAGS) -DBUILD_APPS=OFF && $(MAKE) -j && $(MAKE) install
+	@echo "======== JSON-C build complete ========"
 
 # PROJ 9.7.0
 PROJ_VER := 9.7.0
@@ -81,7 +83,9 @@ proj-$(PROJ_VER).tar.gz:
 proj-$(PROJ_VER)/CMakeLists.txt: proj-$(PROJ_VER).tar.gz
 	mkdir -p proj-$(PROJ_VER) && tar xzf $< -C proj-$(PROJ_VER) --strip-components=1 && touch $@
 $(INSTALL_PREFIX)/lib/libproj.so: proj-$(PROJ_VER)/CMakeLists.txt
+	@echo "======== Building PROJ $(PROJ_VER) (this may take 5-10 minutes) ========"
 	mkdir -p proj-$(PROJ_VER)/build && cd proj-$(PROJ_VER)/build && cmake .. $(CMAKE_FLAGS) -DBUILD_APPS=OFF -DENABLE_TIFF=OFF -DENABLE_CURL=OFF && $(MAKE) -j && $(MAKE) install
+	@echo "======== PROJ build complete ========"
 
 # GEOS 3.14.1
 GEOS_VER := 3.14.1
@@ -90,7 +94,9 @@ geos-$(GEOS_VER).tar.bz2:
 geos-$(GEOS_VER)/CMakeLists.txt: geos-$(GEOS_VER).tar.bz2
 	mkdir -p geos-$(GEOS_VER) && tar xjf $< -C geos-$(GEOS_VER) --strip-components=1 && touch $@
 $(INSTALL_PREFIX)/lib/libgeos.so: geos-$(GEOS_VER)/CMakeLists.txt
+	@echo "======== Building GEOS $(GEOS_VER) (this may take 10-15 minutes) ========"
 	mkdir -p geos-$(GEOS_VER)/build && cd geos-$(GEOS_VER)/build && cmake .. $(CMAKE_FLAGS) && $(MAKE) -j && $(MAKE) install
+	@echo "======== GEOS build complete ========"
 
 # PostGIS 3.6.0
 POSTGIS_VER := 3.6.0
@@ -101,10 +107,13 @@ postgis-$(POSTGIS_VER)/configure.ac: postgis-$(POSTGIS_VER).tar.gz
 postgis-$(POSTGIS_VER)/configure: postgis-$(POSTGIS_VER)/configure.ac
 	cd postgis-$(POSTGIS_VER) && ./autogen.sh
 $(INSTALL_PREFIX)/lib/postgis-3.so: postgis-$(POSTGIS_VER)/configure $(INSTALL_PREFIX)/bin/postgres $(INSTALL_PREFIX)/lib/libjson-c.so $(INSTALL_PREFIX)/lib/libproj.so $(INSTALL_PREFIX)/lib/libgeos.so
+	@echo "======== Configuring PostGIS $(POSTGIS_VER) ========"
 	cd postgis-$(POSTGIS_VER) && ./configure --prefix=$(INSTALL_PREFIX) --with-pgconfig=$(INSTALL_PREFIX)/bin/pg_config \
 		--with-projdir=$(INSTALL_PREFIX) --with-geosconfig=$(INSTALL_PREFIX)/bin/geos-config --with-jsondir=$(INSTALL_PREFIX) \
 		--without-raster --without-topology
+	@echo "======== Building PostGIS $(POSTGIS_VER) ========"
 	unset MAKELEVEL && unset MAKEFLAGS && unset MFLAGS && $(MAKE) -C postgis-$(POSTGIS_VER) -j && $(MAKE) -C postgis-$(POSTGIS_VER) install
+	@echo "======== PostGIS build complete ========"
 
 .PHONY: postgis
 postgis: $(INSTALL_PREFIX)/lib/postgis-3.so
