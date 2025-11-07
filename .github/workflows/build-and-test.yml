@@ -11,10 +11,39 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Build main pgserver package (Python code only, no binaries)
+  build_main_package:
+    name: Build main pgserver package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --upgrade build
+
+      - name: Remove pginstall directory (main package shouldn't include binaries)
+        run: rm -rf src/pgserver/pginstall
+
+      - name: Build main package wheel
+        run: python -m build --wheel
+
+      - name: Upload main package wheel
+        uses: actions/upload-artifact@v4
+        with:
+          path: dist/*.whl
+          name: main-package-wheels
+
   # Build binary packages for each PostgreSQL version
   build_binary_wheels:
     name: Build ${{ matrix.package }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    needs: build_main_package  # Build main package first
     strategy:
       fail-fast: false
       matrix:
@@ -78,35 +107,6 @@ jobs:
         with:
           path: packages/${{ matrix.package }}/dist/*.whl
           name: binary-wheels-${{ matrix.package }}-${{ matrix.os }}
-
-  # Build main pgserver package (Python code only, no binaries)
-  build_main_package:
-    name: Build main pgserver package
-    runs-on: ubuntu-latest
-    needs: build_binary_wheels  # Ensure binary packages are built first
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Install build tools
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install --upgrade build
-
-      - name: Remove pginstall directory (main package shouldn't include binaries)
-        run: rm -rf src/pgserver/pginstall
-
-      - name: Build main package wheel
-        run: python -m build --wheel
-
-      - name: Upload main package wheel
-        uses: actions/upload-artifact@v4
-        with:
-          path: dist/*.whl
-          name: main-package-wheels
 
   # Publish to PyPI
   publish-to-pypi:

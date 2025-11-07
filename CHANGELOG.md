@@ -1,10 +1,5 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
 ## [0.2.0] - 2025-11-07
 
 ### Added
@@ -24,15 +19,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Binary packages are distributed separately from Python code, reducing download size
 - Upgraded pgvector extension to v0.8.1 for PostgreSQL 18 compatibility
 - PostgreSQL binaries now use RPATH to find bundled libraries, preventing conflicts with system PostgreSQL installations
-
-### Removed
-- Removed `setup.py` and CFFI build dependencies (no longer needed with separate binary packages)
-- Removed cibuildwheel configuration from main package (only used for binary packages)
-
-### Fixed
-- Fixed library linking issues where binaries would incorrectly load system PostgreSQL libraries instead of bundled versions
-- Fixed "undefined symbol: PQchangePassword" error when system has older PostgreSQL installed
-
-## [0.1.4] - Previous Release
-
-Earlier releases supported PostgreSQL 16.2 only with binaries bundled in the main package.
