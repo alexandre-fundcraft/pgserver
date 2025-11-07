@@ -6,6 +6,14 @@ BUILD := $(shell pwd)/pgbuild/
 # Default to 18 if not specified
 PGSERVER_VERSION ?= 18
 
+# Detect OS for setting correct RPATH
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Linux)
+    RPATH_FLAG := -Wl,-rpath,'\$$\$$ORIGIN/../lib'
+else ifeq ($(UNAME_S),Darwin)
+    RPATH_FLAG := -Wl,-rpath,@loader_path/../lib
+endif
+
 ### PostgreSQL version definitions
 PG16_VERSION := 16.10
 PG17_VERSION := 17.6
@@ -41,7 +49,7 @@ $(POSTGRES_SRC)/configure: $(POSTGRES_SRC).tar.gz
 ## configure
 $(POSTGRES_BLD)/config.status: $(POSTGRES_SRC)/configure
 	mkdir -p $(POSTGRES_BLD)
-	cd $(POSTGRES_BLD) && ../$(POSTGRES_SRC)/configure --prefix=$(INSTALL_PREFIX) --without-readline --without-icu
+	cd $(POSTGRES_BLD) && LDFLAGS="$(RPATH_FLAG)" ../$(POSTGRES_SRC)/configure --prefix=$(INSTALL_PREFIX) --without-readline --without-icu
 
 ## build
 # https://stackoverflow.com/questions/68379786/
