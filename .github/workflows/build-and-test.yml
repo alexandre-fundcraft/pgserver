@@ -13,42 +13,23 @@ on:
 jobs:
   # Build binary packages for each PostgreSQL version
   build_binary_wheels:
-    name: Build ${{ matrix.package }} on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+    name: Build ${{ matrix.package }} on ubuntu-latest
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         package: [pgserver-postgres-16, pgserver-postgres-17, pgserver-postgres-18]
-        include:
-          - os: macos-12
-            arch: x86_64
-            deployment-target: '10.9'
-          - os: macos-latest
-            arch: arm64
-            deployment-target: '11.0'
-          - os: ubuntu-latest
-            arch: x86_64
-            deployment-target: ''
-          - os: windows-2022
-            arch: AMD64
-            deployment-target: ''
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v4
-        if: matrix.os != 'ubuntu-latest'
         with:
           python-version: '3.10'
 
-      - uses: actions/setup-python@v4
-        if: matrix.os == 'ubuntu-latest'
-        with:
-          python-version: '3.9'
-
-      - name: Install cibuildwheel
+      - name: Install build tools
         run: |
           python -m pip install --upgrade pip
-          python -m pip install --upgrade cibuildwheel build
+          python -m pip install --upgrade build
 
       - name: Extract PostgreSQL version from package name
         id: pg-version
@@ -59,50 +40,14 @@ jobs:
           VERSION="${VERSION##*-}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Restore postgres build from cache
-        if: ${{ matrix.os != 'ubuntu-latest' }}
-        id: restore-postgres
-        uses: actions/cache/restore@v3
-        env:
-          cache-name: cache-postgres-${{ steps.pg-version.outputs.version }}
-        with:
-          path: |
-            pgbuild
-            src/pgserver/pginstall
-          key: ${{ runner.os }}-${{ runner.arch }}-build-${{ env.cache-name }}-${{
-            hashFiles('Makefile', 'pgbuild/Makefile', '.github/workflows/build-and-test.yml') }}
-
-      - name: Build postgres and pgvector
-        if: ${{ matrix.os != 'ubuntu-latest' && ! steps.restore-postgres.outputs.cache-hit }}
-        env:
-          MACOSX_DEPLOYMENT_TARGET: ${{ matrix.deployment-target }}
-          PGSERVER_VERSION: ${{ steps.pg-version.outputs.version }}
-        run: make -C pgbuild
-
-      - name: Save postgres build
-        if: ${{ matrix.os != 'ubuntu-latest' && ! steps.restore-postgres.outputs.cache-hit }}
-        uses: actions/cache/save@v3
-        env:
-          cache-name: cache-postgres-${{ steps.pg-version.outputs.version }}
-        with:
-          path: |
-            pgbuild
-            src/pgserver/pginstall
-          key: ${{ runner.os }}-${{ runner.arch }}-build-${{ env.cache-name }}-${{
-            hashFiles('Makefile', 'pgbuild/Makefile', '.github/workflows/build-and-test.yml') }}
-
       - name: Build binary package
         working-directory: packages/${{ matrix.package }}
-        env:
-          MACOSX_DEPLOYMENT_TARGET: ${{ matrix.deployment-target }}
         run: |
-          # Copy built PostgreSQL to package directory
           make build
-          # Build wheel
           python -m build --wheel
 
       - name: Upload binary package wheels
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           path: packages/${{ matrix.package }}/dist/*.whl
           name: binary-wheels-${{ matrix.package }}
@@ -131,7 +76,7 @@ jobs:
         run: python -m build --wheel
 
       - name: Upload main package wheel
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           path: dist/*.whl
           name: main-package-wheels
@@ -151,13 +96,14 @@ jobs:
       id-token: write
     steps:
       - name: Download all binary wheels
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           path: dist/
           pattern: binary-wheels-*
+          merge-multiple: true
 
       - name: Download main package wheels
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           path: dist/
           name: main-package-wheels
