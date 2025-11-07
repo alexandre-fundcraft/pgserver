@@ -64,15 +64,15 @@ pgvector: postgres $(INSTALL_PREFIX)/lib/vector.so
 ### PostGIS dependencies and extension
 CMAKE_FLAGS := -DCMAKE_INSTALL_PREFIX=$(INSTALL_PREFIX) -DBUILD_SHARED_LIBS=ON -DBUILD_TESTING=OFF
 
-# JSON-C 0.16
-JSONC_VER := 0.16
-JSONC_TAG := json-c-$(JSONC_VER)-20220414
+# JSON-C 0.18 (latest stable)
+JSONC_VER := 0.18
+JSONC_TAG := json-c-$(JSONC_VER)-20240915
 $(JSONC_TAG).tar.gz:
 	curl -L -o $@ https://github.com/json-c/json-c/archive/refs/tags/$(JSONC_TAG).tar.gz
 $(JSONC_TAG)/CMakeLists.txt: $(JSONC_TAG).tar.gz
 	mkdir -p $(JSONC_TAG) && tar xzf $< -C $(JSONC_TAG) --strip-components=1 && touch $@
 $(INSTALL_PREFIX)/lib/libjson-c.so: $(JSONC_TAG)/CMakeLists.txt
-	mkdir -p $(JSONC_TAG)/build && cd $(JSONC_TAG)/build && cmake .. $(CMAKE_FLAGS) -DBUILD_APPS=OFF && $(MAKE) -j && $(MAKE) install
+	mkdir -p $(JSONC_TAG)/build && cd $(JSONC_TAG)/build && cmake .. $(CMAKE_FLAGS) && $(MAKE) -j && $(MAKE) install
 
 # PROJ 8.2.1
 PROJ_VER := 8.2.1
