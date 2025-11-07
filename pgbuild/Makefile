@@ -79,9 +79,11 @@ PROJ_VER := 9.3.1
 proj-$(PROJ_VER).tar.gz:
 	curl -L -o $@ https://github.com/OSGeo/PROJ/releases/download/$(PROJ_VER)/proj-$(PROJ_VER).tar.gz
 proj-$(PROJ_VER)/CMakeLists.txt: proj-$(PROJ_VER).tar.gz
-	mkdir -p proj-$(PROJ_VER) && tar xzf $< -C proj-$(PROJ_VER) --strip-components=1 && touch $@
+	mkdir -p proj-$(PROJ_VER) && tar xzf $< -C proj-$(PROJ_VER) --strip-components=1
+	sed -i 's/cmake_minimum_required(VERSION 3.0)/cmake_minimum_required(VERSION 3.5)/' proj-$(PROJ_VER)/cmake/Ccache.cmake
+	touch $@
 $(INSTALL_PREFIX)/lib/libproj.so: proj-$(PROJ_VER)/CMakeLists.txt
-	mkdir -p proj-$(PROJ_VER)/build && cd proj-$(PROJ_VER)/build && cmake .. $(CMAKE_FLAGS) -DENABLE_CCACHE=OFF && $(MAKE) -j && $(MAKE) install
+	mkdir -p proj-$(PROJ_VER)/build && cd proj-$(PROJ_VER)/build && cmake .. $(CMAKE_FLAGS) && $(MAKE) -j && $(MAKE) install
 
 # GEOS 3.12.1
 GEOS_VER := 3.12.1
