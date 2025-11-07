@@ -64,7 +64,7 @@ pgvector: postgres $(INSTALL_PREFIX)/lib/vector.so
 ### PostGIS dependencies and extension
 CMAKE_FLAGS := -DCMAKE_INSTALL_PREFIX=$(INSTALL_PREFIX) -DBUILD_SHARED_LIBS=ON -DBUILD_TESTING=OFF
 
-# JSON-C 0.18 (latest stable)
+# JSON-C 0.18
 JSONC_VER := 0.18
 JSONC_TAG := json-c-$(JSONC_VER)-20240915
 $(JSONC_TAG).tar.gz:
@@ -74,8 +74,8 @@ $(JSONC_TAG)/CMakeLists.txt: $(JSONC_TAG).tar.gz
 $(INSTALL_PREFIX)/lib/libjson-c.so: $(JSONC_TAG)/CMakeLists.txt
 	mkdir -p $(JSONC_TAG)/build && cd $(JSONC_TAG)/build && cmake .. $(CMAKE_FLAGS) -DBUILD_APPS=OFF && $(MAKE) -j && $(MAKE) install
 
-# PROJ 8.2.1
-PROJ_VER := 8.2.1
+# PROJ 9.7.0
+PROJ_VER := 9.7.0
 proj-$(PROJ_VER).tar.gz:
 	curl -L -o $@ https://github.com/OSGeo/PROJ/releases/download/$(PROJ_VER)/proj-$(PROJ_VER).tar.gz
 proj-$(PROJ_VER)/CMakeLists.txt: proj-$(PROJ_VER).tar.gz
@@ -83,8 +83,8 @@ proj-$(PROJ_VER)/CMakeLists.txt: proj-$(PROJ_VER).tar.gz
 $(INSTALL_PREFIX)/lib/libproj.so: proj-$(PROJ_VER)/CMakeLists.txt
 	mkdir -p proj-$(PROJ_VER)/build && cd proj-$(PROJ_VER)/build && cmake .. $(CMAKE_FLAGS) -DENABLE_TIFF=OFF && $(MAKE) -j && $(MAKE) install
 
-# GEOS 3.11.2
-GEOS_VER := 3.11.2
+# GEOS 3.14.1
+GEOS_VER := 3.14.1
 geos-$(GEOS_VER).tar.bz2:
 	curl -L -o $@ https://github.com/libgeos/geos/releases/download/$(GEOS_VER)/geos-$(GEOS_VER).tar.bz2
 geos-$(GEOS_VER)/CMakeLists.txt: geos-$(GEOS_VER).tar.bz2
@@ -92,8 +92,8 @@ geos-$(GEOS_VER)/CMakeLists.txt: geos-$(GEOS_VER).tar.bz2
 $(INSTALL_PREFIX)/lib/libgeos.so: geos-$(GEOS_VER)/CMakeLists.txt
 	mkdir -p geos-$(GEOS_VER)/build && cd geos-$(GEOS_VER)/build && cmake .. $(CMAKE_FLAGS) && $(MAKE) -j && $(MAKE) install
 
-# PostGIS 3.4.2
-POSTGIS_VER := 3.4.2
+# PostGIS 3.6.0
+POSTGIS_VER := 3.6.0
 postgis-$(POSTGIS_VER).tar.gz:
 	curl -L -o $@ https://github.com/postgis/postgis/archive/refs/tags/$(POSTGIS_VER).tar.gz
 postgis-$(POSTGIS_VER)/configure.ac: postgis-$(POSTGIS_VER).tar.gz
