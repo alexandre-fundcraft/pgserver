@@ -61,6 +61,27 @@ $(POSTGRES_BLD)/src/bin/initdb/initdb: $(POSTGRES_BLD)/config.status
 $(INSTALL_PREFIX)/bin/postgres: $(POSTGRES_BLD)/config.status
 	mkdir -p $(INSTALL_PREFIX)
 	unset MAKELEVEL && unset MAKEFLAGS && unset MFLAGS && $(MAKE) -C $(POSTGRES_BLD) install
+	# Set RPATH on all binaries to find bundled libraries
+	@echo "Setting RPATH on PostgreSQL binaries..."
+ifeq ($(UNAME_S),Linux)
+	@if command -v patchelf >/dev/null 2>&1; then \
+		for binary in $(INSTALL_PREFIX)/bin/*; do \
+			if file "$$binary" | grep -q ELF; then \
+				echo "Setting RPATH for $$binary"; \
+				patchelf --set-rpath '$$ORIGIN/../lib' "$$binary" || true; \
+			fi \
+		done; \
+	else \
+		echo "Warning: patchelf not found, binaries may not find bundled libraries"; \
+	fi
+else ifeq ($(UNAME_S),Darwin)
+	@for binary in $(INSTALL_PREFIX)/bin/*; do \
+		if file "$$binary" | grep -q "Mach-O"; then \
+			echo "Setting RPATH for $$binary"; \
+			install_name_tool -add_rpath @loader_path/../lib "$$binary" 2>/dev/null || true; \
+		fi \
+	done
+endif
 
 .PHONY: postgres
 postgres: $(INSTALL_PREFIX)/bin/postgres
