@@ -151,7 +151,11 @@ $(INSTALL_PREFIX)/lib/postgis-3.so: postgis-$(POSTGIS_VER)/configure $(INSTALL_P
 	echo "relocatable = false" >> $(INSTALL_PREFIX)/share/postgresql/extension/postgis.control
 	echo "schema = public" >> $(INSTALL_PREFIX)/share/postgresql/extension/postgis.control
 	echo "superuser = false" >> $(INSTALL_PREFIX)/share/postgresql/extension/postgis.control
-	cp $(INSTALL_PREFIX)/share/postgresql/contrib/postgis-3.4/postgis.sql $(INSTALL_PREFIX)/share/postgresql/extension/postgis--3.4.2.sql
+	if [ -f postgis-$(POSTGIS_VER)/postgis/postgis.sql ]; then \
+		grep -v -E "^(BEGIN|COMMIT|ROLLBACK)" postgis-$(POSTGIS_VER)/postgis/postgis.sql > $(INSTALL_PREFIX)/share/postgresql/extension/postgis--3.4.2.sql; \
+	else \
+		grep -v -E "^(BEGIN|COMMIT|ROLLBACK)" $$(find postgis-$(POSTGIS_VER) -name "postgis.sql" -type f | head -1) > $(INSTALL_PREFIX)/share/postgresql/extension/postgis--3.4.2.sql; \
+	fi
 	@echo "======== PostGIS build complete ========"
 
 .PHONY: postgis
