@@ -73,7 +73,7 @@ $(JSONC_TAG)/CMakeLists.txt: $(JSONC_TAG).tar.gz
 	mkdir -p $(JSONC_TAG) && tar xzf $< -C $(JSONC_TAG) --strip-components=1 && touch $@
 $(INSTALL_PREFIX)/lib/libjson-c.so: $(JSONC_TAG)/CMakeLists.txt
 	@echo "======== Building JSON-C $(JSONC_VER) ========"
-	mkdir -p $(JSONC_TAG)/build && cd $(JSONC_TAG)/build && cmake .. $(CMAKE_FLAGS) -DBUILD_APPS=OFF && $(MAKE) -j && $(MAKE) install
+	mkdir -p $(JSONC_TAG)/build && cd $(JSONC_TAG)/build && cmake .. $(CMAKE_FLAGS) -DCMAKE_INSTALL_LIBDIR=lib -DBUILD_APPS=OFF && $(MAKE) -j && $(MAKE) install
 	@echo "======== JSON-C build complete ========"
 
 # libxml2 2.9.14
