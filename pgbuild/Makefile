@@ -142,6 +142,10 @@ $(INSTALL_PREFIX)/lib/postgis-3.so: postgis-$(POSTGIS_VER)/configure $(INSTALL_P
 		--without-raster --without-topology --without-protobuf
 	@echo "======== Building PostGIS $(POSTGIS_VER) ========"
 	unset MAKELEVEL && unset MAKEFLAGS && unset MFLAGS && LD_LIBRARY_PATH=$(INSTALL_PREFIX)/lib $(MAKE) -C postgis-$(POSTGIS_VER) -j && $(MAKE) -C postgis-$(POSTGIS_VER) install
+	@echo "======== Installing PostGIS extension files ========"
+	mkdir -p $(INSTALL_PREFIX)/share/postgresql/extension
+	cp postgis-$(POSTGIS_VER)/postgis.control $(INSTALL_PREFIX)/share/postgresql/extension/
+	cp postgis-$(POSTGIS_VER)/postgis--*.sql $(INSTALL_PREFIX)/share/postgresql/extension/
 	@echo "======== PostGIS build complete ========"
 
 .PHONY: postgis
