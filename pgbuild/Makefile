@@ -114,6 +114,8 @@ $(INSTALL_PREFIX)/lib/libproj.so: proj-$(PROJ_VER)/CMakeLists.txt $(INSTALL_PREF
 	find proj-$(PROJ_VER)/src -name "*.h" -exec cp {} $(INSTALL_PREFIX)/include/ \;
 	find proj-$(PROJ_VER)/include -name "*.h" -exec cp {} $(INSTALL_PREFIX)/include/ \; 2>/dev/null || true
 	cp proj-$(PROJ_VER)/build/include/*.h $(INSTALL_PREFIX)/include/ 2>/dev/null || true
+	@echo "======== Verifying PROJ installation ========"
+	@ls -la $(INSTALL_PREFIX)/lib/libproj* 2>/dev/null || echo "No libproj files found!"
 	@echo "======== PROJ build complete ========"
 
 # GEOS 3.12.1
@@ -125,6 +127,11 @@ geos-$(GEOS_VER)/CMakeLists.txt: geos-$(GEOS_VER).tar.bz2
 $(INSTALL_PREFIX)/lib/libgeos.so: geos-$(GEOS_VER)/CMakeLists.txt
 	@echo "======== Building GEOS $(GEOS_VER) (this may take 10-15 minutes) ========"
 	mkdir -p geos-$(GEOS_VER)/build && cd geos-$(GEOS_VER)/build && cmake .. $(CMAKE_FLAGS) -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_POLICY_VERSION_MINIMUM=3.5 && $(MAKE) -j && $(MAKE) install
+	@echo "======== Verifying GEOS installation ========"
+	@echo "Files in lib:"
+	@ls -la $(INSTALL_PREFIX)/lib/libgeos* 2>/dev/null || echo "No libgeos files in lib!"
+	@echo "Files in lib64:"
+	@ls -la $(INSTALL_PREFIX)/lib64/libgeos* 2>/dev/null || echo "No libgeos files in lib64"
 	@echo "======== GEOS build complete ========"
 
 # PostGIS 3.3.6
