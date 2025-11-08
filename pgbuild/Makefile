@@ -76,6 +76,17 @@ $(INSTALL_PREFIX)/lib/libjson-c.so: $(JSONC_TAG)/CMakeLists.txt
 	mkdir -p $(JSONC_TAG)/build && cd $(JSONC_TAG)/build && cmake .. $(CMAKE_FLAGS) -DBUILD_APPS=OFF && $(MAKE) -j && $(MAKE) install
 	@echo "======== JSON-C build complete ========"
 
+# libxml2 2.9.14
+LIBXML2_VER := 2.9.14
+libxml2-$(LIBXML2_VER).tar.xz:
+	curl -L -o $@ https://download.gnome.org/sources/libxml2/2.9/libxml2-$(LIBXML2_VER).tar.xz
+libxml2-$(LIBXML2_VER)/configure: libxml2-$(LIBXML2_VER).tar.xz
+	mkdir -p libxml2-$(LIBXML2_VER) && tar xJf $< -C libxml2-$(LIBXML2_VER) --strip-components=1 && touch $@
+$(INSTALL_PREFIX)/lib/libxml2.so: libxml2-$(LIBXML2_VER)/configure
+	@echo "======== Building libxml2 $(LIBXML2_VER) ========"
+	cd libxml2-$(LIBXML2_VER) && ./configure --prefix=$(INSTALL_PREFIX) --without-python --without-lzma && $(MAKE) -j && $(MAKE) install
+	@echo "======== libxml2 build complete ========"
+
 # PROJ 9.3.1
 PROJ_VER := 9.3.1
 proj-$(PROJ_VER).tar.gz:
@@ -106,9 +117,9 @@ postgis-$(POSTGIS_VER)/configure.ac: postgis-$(POSTGIS_VER).tar.gz
 	mkdir -p postgis-$(POSTGIS_VER) && tar xzf $< -C postgis-$(POSTGIS_VER) --strip-components=1 && touch $@
 postgis-$(POSTGIS_VER)/configure: postgis-$(POSTGIS_VER)/configure.ac
 	cd postgis-$(POSTGIS_VER) && ./autogen.sh
-$(INSTALL_PREFIX)/lib/postgis-3.so: postgis-$(POSTGIS_VER)/configure $(INSTALL_PREFIX)/bin/postgres $(INSTALL_PREFIX)/lib/libjson-c.so $(INSTALL_PREFIX)/lib/libproj.so $(INSTALL_PREFIX)/lib/libgeos.so
+$(INSTALL_PREFIX)/lib/postgis-3.so: postgis-$(POSTGIS_VER)/configure $(INSTALL_PREFIX)/bin/postgres $(INSTALL_PREFIX)/lib/libjson-c.so $(INSTALL_PREFIX)/lib/libxml2.so $(INSTALL_PREFIX)/lib/libproj.so $(INSTALL_PREFIX)/lib/libgeos.so
 	@echo "======== Configuring PostGIS $(POSTGIS_VER) ========"
-	cd postgis-$(POSTGIS_VER) && ./configure --prefix=$(INSTALL_PREFIX) --with-pgconfig=$(INSTALL_PREFIX)/bin/pg_config \
+	cd postgis-$(POSTGIS_VER) && PKG_CONFIG_PATH=$(INSTALL_PREFIX)/lib/pkgconfig ./configure --prefix=$(INSTALL_PREFIX) --with-pgconfig=$(INSTALL_PREFIX)/bin/pg_config \
 		--with-projdir=$(INSTALL_PREFIX) --with-geosconfig=$(INSTALL_PREFIX)/bin/geos-config --with-jsondir=$(INSTALL_PREFIX) \
 		--without-raster --without-topology
 	@echo "======== Building PostGIS $(POSTGIS_VER) ========"
@@ -122,7 +133,7 @@ postgis: $(INSTALL_PREFIX)/lib/postgis-3.so
 .PHONY: clean clean-all
 clean:
 	rm -rf $(INSTALL_PREFIX) $(POSTGRES_SRC) $(POSTGRES_BLD) $(PGVECTOR_DIR)
-	rm -rf $(JSONC_TAG) proj-$(PROJ_VER) geos-$(GEOS_VER) postgis-$(POSTGIS_VER)
+	rm -rf $(JSONC_TAG) libxml2-$(LIBXML2_VER) proj-$(PROJ_VER) geos-$(GEOS_VER) postgis-$(POSTGIS_VER)
 
 clean-all: clean
-	rm -rf *.tar.gz *.tar.bz2
+	rm -rf *.tar.gz *.tar.bz2 *.tar.xz
