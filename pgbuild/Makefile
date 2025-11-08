@@ -127,8 +127,8 @@ $(INSTALL_PREFIX)/lib/libgeos.so: geos-$(GEOS_VER)/CMakeLists.txt
 	mkdir -p geos-$(GEOS_VER)/build && cd geos-$(GEOS_VER)/build && cmake .. $(CMAKE_FLAGS) -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_POLICY_VERSION_MINIMUM=3.5 && $(MAKE) -j && $(MAKE) install
 	@echo "======== GEOS build complete ========"
 
-# PostGIS 3.4.2
-POSTGIS_VER := 3.4.2
+# PostGIS 3.3.6
+POSTGIS_VER := 3.3.6
 postgis-$(POSTGIS_VER).tar.gz:
 	curl -L -o $@ https://github.com/postgis/postgis/archive/refs/tags/$(POSTGIS_VER).tar.gz
 postgis-$(POSTGIS_VER)/configure.ac: postgis-$(POSTGIS_VER).tar.gz
@@ -146,15 +146,15 @@ $(INSTALL_PREFIX)/lib/postgis-3.so: postgis-$(POSTGIS_VER)/configure $(INSTALL_P
 	mkdir -p $(INSTALL_PREFIX)/share/postgresql/extension
 	echo "# PostGIS extension" > $(INSTALL_PREFIX)/share/postgresql/extension/postgis.control
 	echo "comment = 'PostGIS geometry and geography spatial types and functions'" >> $(INSTALL_PREFIX)/share/postgresql/extension/postgis.control
-	echo "default_version = '3.4.2'" >> $(INSTALL_PREFIX)/share/postgresql/extension/postgis.control
+	echo "default_version = '3.3.6'" >> $(INSTALL_PREFIX)/share/postgresql/extension/postgis.control
 	echo "module_pathname = '\$$libdir/postgis-3'" >> $(INSTALL_PREFIX)/share/postgresql/extension/postgis.control
 	echo "relocatable = false" >> $(INSTALL_PREFIX)/share/postgresql/extension/postgis.control
 	echo "schema = public" >> $(INSTALL_PREFIX)/share/postgresql/extension/postgis.control
 	echo "superuser = false" >> $(INSTALL_PREFIX)/share/postgresql/extension/postgis.control
 	if [ -f postgis-$(POSTGIS_VER)/postgis/postgis.sql ]; then \
-		sed '/^BEGIN;$$/d; /^COMMIT;$$/d; /^ROLLBACK;$$/d' postgis-$(POSTGIS_VER)/postgis/postgis.sql > $(INSTALL_PREFIX)/share/postgresql/extension/postgis--3.4.2.sql; \
+		sed '/^BEGIN;$$/d; /^COMMIT;$$/d; /^ROLLBACK;$$/d' postgis-$(POSTGIS_VER)/postgis/postgis.sql > $(INSTALL_PREFIX)/share/postgresql/extension/postgis--$(POSTGIS_VER).sql; \
 	else \
-		sed '/^BEGIN;$$/d; /^COMMIT;$$/d; /^ROLLBACK;$$/d' $$(find postgis-$(POSTGIS_VER) -name "postgis.sql" -type f | head -1) > $(INSTALL_PREFIX)/share/postgresql/extension/postgis--3.4.2.sql; \
+		sed '/^BEGIN;$$/d; /^COMMIT;$$/d; /^ROLLBACK;$$/d' $$(find postgis-$(POSTGIS_VER) -name "postgis.sql" -type f | head -1) > $(INSTALL_PREFIX)/share/postgresql/extension/postgis--$(POSTGIS_VER).sql; \
 	fi
 	@echo "======== PostGIS build complete ========"
 
