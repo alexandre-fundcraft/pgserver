@@ -137,11 +137,11 @@ postgis-$(POSTGIS_VER)/configure: postgis-$(POSTGIS_VER)/configure.ac
 	cd postgis-$(POSTGIS_VER) && ./autogen.sh
 $(INSTALL_PREFIX)/lib/postgis-3.so: postgis-$(POSTGIS_VER)/configure $(INSTALL_PREFIX)/bin/postgres $(INSTALL_PREFIX)/lib/libjson-c.so $(INSTALL_PREFIX)/lib/libxml2.so $(INSTALL_PREFIX)/lib/libproj.so $(INSTALL_PREFIX)/lib/libgeos.so
 	@echo "======== Configuring PostGIS $(POSTGIS_VER) ========"
-	cd postgis-$(POSTGIS_VER) && LD_LIBRARY_PATH=$(INSTALL_PREFIX)/lib PKG_CONFIG_PATH=$(INSTALL_PREFIX)/lib/pkgconfig ./configure --prefix=$(INSTALL_PREFIX) --with-pgconfig=$(INSTALL_PREFIX)/bin/pg_config \
+	cd postgis-$(POSTGIS_VER) && LD_LIBRARY_PATH=$(INSTALL_PREFIX)/lib PKG_CONFIG_PATH=$(INSTALL_PREFIX)/lib/pkgconfig LDFLAGS="-L$(INSTALL_PREFIX)/lib -Wl,-rpath,$(INSTALL_PREFIX)/lib" ./configure --prefix=$(INSTALL_PREFIX) --with-pgconfig=$(INSTALL_PREFIX)/bin/pg_config \
 		--with-projdir=$(INSTALL_PREFIX) --with-geosconfig=$(INSTALL_PREFIX)/bin/geos-config --with-jsondir=$(INSTALL_PREFIX) \
 		--without-raster --without-topology --without-protobuf
 	@echo "======== Building PostGIS $(POSTGIS_VER) ========"
-	unset MAKELEVEL && unset MAKEFLAGS && unset MFLAGS && $(MAKE) -C postgis-$(POSTGIS_VER) -j && $(MAKE) -C postgis-$(POSTGIS_VER) install
+	unset MAKELEVEL && unset MAKEFLAGS && unset MFLAGS && LD_LIBRARY_PATH=$(INSTALL_PREFIX)/lib $(MAKE) -C postgis-$(POSTGIS_VER) -j && $(MAKE) -C postgis-$(POSTGIS_VER) install
 	@echo "======== PostGIS build complete ========"
 
 .PHONY: postgis
