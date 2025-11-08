@@ -144,8 +144,14 @@ $(INSTALL_PREFIX)/lib/postgis-3.so: postgis-$(POSTGIS_VER)/configure $(INSTALL_P
 	unset MAKELEVEL && unset MAKEFLAGS && unset MFLAGS && LD_LIBRARY_PATH=$(INSTALL_PREFIX)/lib $(MAKE) -C postgis-$(POSTGIS_VER) -j && $(MAKE) -C postgis-$(POSTGIS_VER) install
 	@echo "======== Installing PostGIS extension files ========"
 	mkdir -p $(INSTALL_PREFIX)/share/postgresql/extension
-	cp postgis-$(POSTGIS_VER)/extensions/postgis/postgis.control $(INSTALL_PREFIX)/share/postgresql/extension/
-	cp postgis-$(POSTGIS_VER)/extensions/postgis/sql/postgis--*.sql $(INSTALL_PREFIX)/share/postgresql/extension/
+	echo "# PostGIS extension" > $(INSTALL_PREFIX)/share/postgresql/extension/postgis.control
+	echo "comment = 'PostGIS geometry and geography spatial types and functions'" >> $(INSTALL_PREFIX)/share/postgresql/extension/postgis.control
+	echo "default_version = '3.4.2'" >> $(INSTALL_PREFIX)/share/postgresql/extension/postgis.control
+	echo "module_pathname = '\$$libdir/postgis-3'" >> $(INSTALL_PREFIX)/share/postgresql/extension/postgis.control
+	echo "relocatable = false" >> $(INSTALL_PREFIX)/share/postgresql/extension/postgis.control
+	echo "schema = public" >> $(INSTALL_PREFIX)/share/postgresql/extension/postgis.control
+	echo "superuser = false" >> $(INSTALL_PREFIX)/share/postgresql/extension/postgis.control
+	cp $(INSTALL_PREFIX)/share/postgresql/contrib/postgis-3.4/postgis.sql $(INSTALL_PREFIX)/share/postgresql/extension/postgis--3.4.2.sql
 	@echo "======== PostGIS build complete ========"
 
 .PHONY: postgis
