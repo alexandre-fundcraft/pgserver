@@ -87,13 +87,25 @@ $(INSTALL_PREFIX)/lib/libxml2.so: libxml2-$(LIBXML2_VER)/configure
 	cd libxml2-$(LIBXML2_VER) && ./configure --prefix=$(INSTALL_PREFIX) --without-python --without-lzma && $(MAKE) -j && $(MAKE) install
 	@echo "======== libxml2 build complete ========"
 
+# SQLite 3.49.1
+SQLITE_VER := 3490100
+SQLITE_YEAR := 2025
+sqlite-autoconf-$(SQLITE_VER).tar.gz:
+	curl -L -o $@ https://www.sqlite.org/$(SQLITE_YEAR)/sqlite-autoconf-$(SQLITE_VER).tar.gz
+sqlite-autoconf-$(SQLITE_VER)/configure: sqlite-autoconf-$(SQLITE_VER).tar.gz
+	mkdir -p sqlite-autoconf-$(SQLITE_VER) && tar xzf $< -C sqlite-autoconf-$(SQLITE_VER) --strip-components=1 && touch $@
+$(INSTALL_PREFIX)/lib/libsqlite3.so: sqlite-autoconf-$(SQLITE_VER)/configure
+	@echo "======== Building SQLite $(SQLITE_VER) ========"
+	cd sqlite-autoconf-$(SQLITE_VER) && ./configure --prefix=$(INSTALL_PREFIX) && $(MAKE) -j && $(MAKE) install
+	@echo "======== SQLite build complete ========"
+
 # PROJ 9.3.1
 PROJ_VER := 9.3.1
 proj-$(PROJ_VER).tar.gz:
 	curl -L -o $@ https://github.com/OSGeo/PROJ/releases/download/$(PROJ_VER)/proj-$(PROJ_VER).tar.gz
 proj-$(PROJ_VER)/CMakeLists.txt: proj-$(PROJ_VER).tar.gz
 	mkdir -p proj-$(PROJ_VER) && tar xzf $< -C proj-$(PROJ_VER) --strip-components=1 && touch $@
-$(INSTALL_PREFIX)/lib/libproj.so: proj-$(PROJ_VER)/CMakeLists.txt
+$(INSTALL_PREFIX)/lib/libproj.so: proj-$(PROJ_VER)/CMakeLists.txt $(INSTALL_PREFIX)/lib/libsqlite3.so
 	@echo "======== Building PROJ $(PROJ_VER) (this may take 5-10 minutes) ========"
 	mkdir -p proj-$(PROJ_VER)/build && cd proj-$(PROJ_VER)/build && cmake .. $(CMAKE_FLAGS) -DCMAKE_INSTALL_LIBDIR=lib -DBUILD_APPS=OFF -DENABLE_TIFF=OFF -DENABLE_CURL=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5 && $(MAKE) -j && $(MAKE) install
 	@echo "======== PROJ build complete ========"
@@ -133,7 +145,7 @@ postgis: $(INSTALL_PREFIX)/lib/postgis-3.so
 .PHONY: clean clean-all
 clean:
 	rm -rf $(INSTALL_PREFIX) $(POSTGRES_SRC) $(POSTGRES_BLD) $(PGVECTOR_DIR)
-	rm -rf $(JSONC_TAG) libxml2-$(LIBXML2_VER) proj-$(PROJ_VER) geos-$(GEOS_VER) postgis-$(POSTGIS_VER)
+	rm -rf $(JSONC_TAG) libxml2-$(LIBXML2_VER) sqlite-autoconf-$(SQLITE_VER) proj-$(PROJ_VER) geos-$(GEOS_VER) postgis-$(POSTGIS_VER)
 
 clean-all: clean
 	rm -rf *.tar.gz *.tar.bz2 *.tar.xz
