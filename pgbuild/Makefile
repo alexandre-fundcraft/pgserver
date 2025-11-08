@@ -1,4 +1,6 @@
 SHELL := /bin/bash
+# Limit parallelism to avoid OOM/timeouts on CI runners. Override with make JOBS=4 if desired.
+JOBS ?= 2
 INSTALL_PREFIX := $(shell pwd)/../src/pgserver/pginstall/
 BUILD := $(shell pwd)/pgbuild/
 
@@ -28,12 +30,15 @@ $(POSTGRES_BLD)/config.status: $(POSTGRES_SRC)/configure
 # https://stackoverflow.com/questions/68379786/
 # for explanation of unsetting make env variables prior to calling postgres' own make
 $(POSTGRES_BLD)/src/bin/initdb/initdb: $(POSTGRES_BLD)/config.status
-	unset MAKELEVEL && unset MAKEFLAGS && unset MFLAGS && $(MAKE) -C $(POSTGRES_BLD) -j
+	unset MAKELEVEL && unset MAKEFLAGS && unset MFLAGS && $(MAKE) -C $(POSTGRES_BLD) -j$(JOBS)
 
 ## install to INSTALL_PREFIX
 $(INSTALL_PREFIX)/bin/postgres: $(POSTGRES_BLD)/config.status
 	mkdir -p $(INSTALL_PREFIX)
 	unset MAKELEVEL && unset MAKEFLAGS && unset MFLAGS && $(MAKE) -C $(POSTGRES_BLD) install
+	@echo "======== Setting RPATH on postgres binary ========"
+	patchelf --set-rpath '$$ORIGIN/../lib' $(INSTALL_PREFIX)/bin/postgres || \
+		(echo "WARNING: failed to set RPATH on postgres" && true)
 
 .PHONY: postgres
 postgres: $(INSTALL_PREFIX)/bin/postgres
@@ -55,7 +60,7 @@ $(PGVECTOR_DIR)/Makefile: $(PGVECTOR_DIR).tar.gz
 $(INSTALL_PREFIX)/lib/vector.so: $(PGVECTOR_DIR)/Makefile $(INSTALL_PREFIX)/bin/postgres
 	unset MAKELEVEL && unset MAKEFLAGS && unset MFLAGS \
 		&& export PG_CONFIG=$(INSTALL_PREFIX)/bin/pg_config \
-		&& $(MAKE) -C $(PGVECTOR_DIR) -j \
+		&& $(MAKE) -C $(PGVECTOR_DIR) -j$(JOBS) \
 		&& $(MAKE) -C $(PGVECTOR_DIR) install
 
 .PHONY: pgvector
@@ -73,7 +78,7 @@ $(JSONC_TAG)/CMakeLists.txt: $(JSONC_TAG).tar.gz
 	mkdir -p $(JSONC_TAG) && tar xzf $< -C $(JSONC_TAG) --strip-components=1 && touch $@
 $(INSTALL_PREFIX)/lib/libjson-c.so: $(JSONC_TAG)/CMakeLists.txt
 	@echo "======== Building JSON-C $(JSONC_VER) ========"
-	mkdir -p $(JSONC_TAG)/build && cd $(JSONC_TAG)/build && cmake .. $(CMAKE_FLAGS) -DCMAKE_INSTALL_LIBDIR=lib -DBUILD_APPS=OFF && $(MAKE) -j && $(MAKE) install
+	mkdir -p $(JSONC_TAG)/build && cd $(JSONC_TAG)/build && cmake .. $(CMAKE_FLAGS) -DCMAKE_INSTALL_LIBDIR=lib -DBUILD_APPS=OFF && $(MAKE) -j$(JOBS) && $(MAKE) install
 	@echo "======== JSON-C build complete ========"
 
 # libxml2 2.9.14
@@ -84,7 +89,7 @@ libxml2-$(LIBXML2_VER)/configure: libxml2-$(LIBXML2_VER).tar.xz
 	mkdir -p libxml2-$(LIBXML2_VER) && tar xJf $< -C libxml2-$(LIBXML2_VER) --strip-components=1 && touch $@
 $(INSTALL_PREFIX)/lib/libxml2.so: libxml2-$(LIBXML2_VER)/configure
 	@echo "======== Building libxml2 $(LIBXML2_VER) ========"
-	cd libxml2-$(LIBXML2_VER) && ./configure --prefix=$(INSTALL_PREFIX) --without-python --without-lzma && $(MAKE) -j && $(MAKE) install
+	cd libxml2-$(LIBXML2_VER) && ./configure --prefix=$(INSTALL_PREFIX) --without-python --without-lzma && $(MAKE) -j$(JOBS) && $(MAKE) install
 	@echo "======== libxml2 build complete ========"
 
 # SQLite 3.49.1
@@ -96,7 +101,7 @@ sqlite-autoconf-$(SQLITE_VER)/configure: sqlite-autoconf-$(SQLITE_VER).tar.gz
 	mkdir -p sqlite-autoconf-$(SQLITE_VER) && tar xzf $< -C sqlite-autoconf-$(SQLITE_VER) --strip-components=1 && touch $@
 $(INSTALL_PREFIX)/lib/libsqlite3.so: sqlite-autoconf-$(SQLITE_VER)/configure
 	@echo "======== Building SQLite $(SQLITE_VER) ========"
-	cd sqlite-autoconf-$(SQLITE_VER) && ./configure --prefix=$(INSTALL_PREFIX) && $(MAKE) -j && $(MAKE) install
+	cd sqlite-autoconf-$(SQLITE_VER) && ./configure --prefix=$(INSTALL_PREFIX) && $(MAKE) -j$(JOBS) && $(MAKE) install
 	@echo "======== SQLite build complete ========"
 
 # PROJ 9.3.1
@@ -107,7 +112,7 @@ proj-$(PROJ_VER)/CMakeLists.txt: proj-$(PROJ_VER).tar.gz
 	mkdir -p proj-$(PROJ_VER) && tar xzf $< -C proj-$(PROJ_VER) --strip-components=1 && touch $@
 $(INSTALL_PREFIX)/lib/libproj.so: proj-$(PROJ_VER)/CMakeLists.txt $(INSTALL_PREFIX)/lib/libsqlite3.so
 	@echo "======== Building PROJ $(PROJ_VER) (this may take 5-10 minutes) ========"
-	mkdir -p proj-$(PROJ_VER)/build && cd proj-$(PROJ_VER)/build && cmake .. $(CMAKE_FLAGS) -DCMAKE_INSTALL_LIBDIR=lib -DBUILD_APPS=OFF -DENABLE_TIFF=OFF -DENABLE_CURL=OFF -DBUILD_TESTING=OFF -DBUILD_PROJSYNC=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5 && $(MAKE) -j proj
+	mkdir -p proj-$(PROJ_VER)/build && cd proj-$(PROJ_VER)/build && cmake .. $(CMAKE_FLAGS) -DCMAKE_INSTALL_LIBDIR=lib -DBUILD_APPS=OFF -DENABLE_TIFF=OFF -DENABLE_CURL=OFF -DBUILD_TESTING=OFF -DBUILD_PROJSYNC=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5 && $(MAKE) -j$(JOBS) proj
 	@echo "======== Installing PROJ library manually ========"
 	mkdir -p $(INSTALL_PREFIX)/lib $(INSTALL_PREFIX)/include
 	cp -a proj-$(PROJ_VER)/build/lib/libproj.* $(INSTALL_PREFIX)/lib/
@@ -124,14 +129,20 @@ geos-$(GEOS_VER).tar.bz2:
 	curl -L -o $@ https://github.com/libgeos/geos/releases/download/$(GEOS_VER)/geos-$(GEOS_VER).tar.bz2
 geos-$(GEOS_VER)/CMakeLists.txt: geos-$(GEOS_VER).tar.bz2
 	mkdir -p geos-$(GEOS_VER) && tar xjf $< -C geos-$(GEOS_VER) --strip-components=1 && touch $@
+
 $(INSTALL_PREFIX)/lib/libgeos.so: geos-$(GEOS_VER)/CMakeLists.txt
 	@echo "======== Building GEOS $(GEOS_VER) (this may take 10-15 minutes) ========"
-	mkdir -p geos-$(GEOS_VER)/build && cd geos-$(GEOS_VER)/build && cmake .. $(CMAKE_FLAGS) -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_POLICY_VERSION_MINIMUM=3.5 && $(MAKE) -j && $(MAKE) install
+	mkdir -p geos-$(GEOS_VER)/build && cd geos-$(GEOS_VER)/build && cmake .. $(CMAKE_FLAGS) -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_POLICY_VERSION_MINIMUM=3.5 && $(MAKE) -j$(JOBS) && $(MAKE) install
 	@echo "======== Verifying GEOS installation ========"
 	@echo "Files in lib:"
 	@ls -la $(INSTALL_PREFIX)/lib/libgeos* 2>/dev/null || echo "No libgeos files in lib!"
 	@echo "Files in lib64:"
 	@ls -la $(INSTALL_PREFIX)/lib64/libgeos* 2>/dev/null || echo "No libgeos files in lib64"
+	@echo "======== Setting RPATH on libgeos_c to find libgeos ========"
+	@if [ -f $(INSTALL_PREFIX)/lib/libgeos_c.so.1.18.1 ]; then \
+		patchelf --set-rpath '$$ORIGIN' $(INSTALL_PREFIX)/lib/libgeos_c.so.1.18.1 || \
+			(echo "WARNING: failed to set RPATH on libgeos_c.so.1.18.1" && true); \
+	fi
 	@echo "======== GEOS build complete ========"
 
 # PostGIS 3.3.6
@@ -148,7 +159,7 @@ $(INSTALL_PREFIX)/lib/postgis-3.so: postgis-$(POSTGIS_VER)/configure $(INSTALL_P
 		--with-projdir=$(INSTALL_PREFIX) --with-geosconfig=$(INSTALL_PREFIX)/bin/geos-config --with-jsondir=$(INSTALL_PREFIX) \
 		--without-raster --without-topology --without-protobuf
 	@echo "======== Building PostGIS $(POSTGIS_VER) ========"
-	unset MAKELEVEL && unset MAKEFLAGS && unset MFLAGS && LD_LIBRARY_PATH=$(INSTALL_PREFIX)/lib $(MAKE) -C postgis-$(POSTGIS_VER) -j && $(MAKE) -C postgis-$(POSTGIS_VER) install
+	unset MAKELEVEL && unset MAKEFLAGS && unset MFLAGS && LD_LIBRARY_PATH=$(INSTALL_PREFIX)/lib $(MAKE) -C postgis-$(POSTGIS_VER) -j$(JOBS) && $(MAKE) -C postgis-$(POSTGIS_VER) install
 	@echo "======== Setting RPATH on PostGIS library ========"
 	patchelf --set-rpath '$$ORIGIN/../../lib' $(INSTALL_PREFIX)/lib/postgresql/postgis-3.so || \
 		(echo "ERROR: patchelf failed or not available" && exit 1)
