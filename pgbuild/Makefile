@@ -111,7 +111,8 @@ $(INSTALL_PREFIX)/lib/libproj.so: proj-$(PROJ_VER)/CMakeLists.txt $(INSTALL_PREF
 	@echo "======== Installing PROJ library manually ========"
 	mkdir -p $(INSTALL_PREFIX)/lib $(INSTALL_PREFIX)/include
 	cp -a proj-$(PROJ_VER)/build/lib/libproj.* $(INSTALL_PREFIX)/lib/
-	cp proj-$(PROJ_VER)/include/*.h $(INSTALL_PREFIX)/include/
+	find proj-$(PROJ_VER)/src -name "*.h" -exec cp {} $(INSTALL_PREFIX)/include/ \;
+	find proj-$(PROJ_VER)/include -name "*.h" -exec cp {} $(INSTALL_PREFIX)/include/ \; 2>/dev/null || true
 	cp proj-$(PROJ_VER)/build/include/*.h $(INSTALL_PREFIX)/include/ 2>/dev/null || true
 	@echo "======== PROJ build complete ========"
 
