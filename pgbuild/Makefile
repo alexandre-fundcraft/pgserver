@@ -139,7 +139,7 @@ $(INSTALL_PREFIX)/lib/postgis-3.so: postgis-$(POSTGIS_VER)/configure $(INSTALL_P
 	@echo "======== Configuring PostGIS $(POSTGIS_VER) ========"
 	cd postgis-$(POSTGIS_VER) && LD_LIBRARY_PATH=$(INSTALL_PREFIX)/lib PKG_CONFIG_PATH=$(INSTALL_PREFIX)/lib/pkgconfig ./configure --prefix=$(INSTALL_PREFIX) --with-pgconfig=$(INSTALL_PREFIX)/bin/pg_config \
 		--with-projdir=$(INSTALL_PREFIX) --with-geosconfig=$(INSTALL_PREFIX)/bin/geos-config --with-jsondir=$(INSTALL_PREFIX) \
-		--without-raster --without-topology
+		--without-raster --without-topology --without-protobuf
 	@echo "======== Building PostGIS $(POSTGIS_VER) ========"
 	unset MAKELEVEL && unset MAKEFLAGS && unset MFLAGS && $(MAKE) -C postgis-$(POSTGIS_VER) -j && $(MAKE) -C postgis-$(POSTGIS_VER) install
 	@echo "======== PostGIS build complete ========"
