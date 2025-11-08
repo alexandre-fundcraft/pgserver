@@ -142,6 +142,10 @@ $(INSTALL_PREFIX)/lib/postgis-3.so: postgis-$(POSTGIS_VER)/configure $(INSTALL_P
 		--without-raster --without-topology --without-protobuf
 	@echo "======== Building PostGIS $(POSTGIS_VER) ========"
 	unset MAKELEVEL && unset MAKEFLAGS && unset MFLAGS && LD_LIBRARY_PATH=$(INSTALL_PREFIX)/lib $(MAKE) -C postgis-$(POSTGIS_VER) -j && $(MAKE) -C postgis-$(POSTGIS_VER) install
+	@echo "======== Setting RPATH on PostGIS library ========"
+	patchelf --set-rpath '$$ORIGIN/../../lib' $(INSTALL_PREFIX)/lib/postgresql/postgis-3.so 2>/dev/null || \
+		(echo "patchelf not available, library path will need to be set at runtime" && \
+		echo "LD_LIBRARY_PATH=$(INSTALL_PREFIX)/lib" > $(INSTALL_PREFIX)/lib/postgresql/.postgis_env)
 	@echo "======== Installing PostGIS extension files ========"
 	mkdir -p $(INSTALL_PREFIX)/share/postgresql/extension
 	echo "# PostGIS extension" > $(INSTALL_PREFIX)/share/postgresql/extension/postgis.control
