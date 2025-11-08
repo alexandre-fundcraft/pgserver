@@ -105,7 +105,7 @@ proj-$(PROJ_VER).tar.gz:
 	curl -L -o $@ https://github.com/OSGeo/PROJ/releases/download/$(PROJ_VER)/proj-$(PROJ_VER).tar.gz
 proj-$(PROJ_VER)/CMakeLists.txt: proj-$(PROJ_VER).tar.gz
 	mkdir -p proj-$(PROJ_VER) && tar xzf $< -C proj-$(PROJ_VER) --strip-components=1 && touch $@
-$(INSTALL_PREFIX)/lib/libproj.so: proj-$(PROJ_VER)/CMakeLists.txt
+$(INSTALL_PREFIX)/lib/libproj.so: proj-$(PROJ_VER)/CMakeLists.txt $(INSTALL_PREFIX)/lib/libsqlite3.so
 	@echo "======== Building PROJ $(PROJ_VER) (this may take 5-10 minutes) ========"
 	mkdir -p proj-$(PROJ_VER)/build && cd proj-$(PROJ_VER)/build && cmake .. $(CMAKE_FLAGS) -DCMAKE_INSTALL_LIBDIR=lib -DBUILD_APPS=OFF -DENABLE_TIFF=OFF -DENABLE_CURL=OFF -DBUILD_TESTING=OFF -DBUILD_PROJSYNC=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5 && $(MAKE) -j proj && $(MAKE) install
 	@echo "======== PROJ build complete ========"
