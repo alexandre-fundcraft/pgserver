@@ -95,7 +95,7 @@ geos-$(GEOS_VER)/CMakeLists.txt: geos-$(GEOS_VER).tar.bz2
 	mkdir -p geos-$(GEOS_VER) && tar xjf $< -C geos-$(GEOS_VER) --strip-components=1 && touch $@
 $(INSTALL_PREFIX)/lib/libgeos.so: geos-$(GEOS_VER)/CMakeLists.txt
 	@echo "======== Building GEOS $(GEOS_VER) (this may take 10-15 minutes) ========"
-	mkdir -p geos-$(GEOS_VER)/build && cd geos-$(GEOS_VER)/build && cmake .. $(CMAKE_FLAGS) && $(MAKE) -j && $(MAKE) install
+	mkdir -p geos-$(GEOS_VER)/build && cd geos-$(GEOS_VER)/build && cmake .. $(CMAKE_FLAGS) -DCMAKE_POLICY_VERSION_MINIMUM=3.5 && $(MAKE) -j && $(MAKE) install
 	@echo "======== GEOS build complete ========"
 
 # PostGIS 3.4.2
