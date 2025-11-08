@@ -107,7 +107,12 @@ proj-$(PROJ_VER)/CMakeLists.txt: proj-$(PROJ_VER).tar.gz
 	mkdir -p proj-$(PROJ_VER) && tar xzf $< -C proj-$(PROJ_VER) --strip-components=1 && touch $@
 $(INSTALL_PREFIX)/lib/libproj.so: proj-$(PROJ_VER)/CMakeLists.txt $(INSTALL_PREFIX)/lib/libsqlite3.so
 	@echo "======== Building PROJ $(PROJ_VER) (this may take 5-10 minutes) ========"
-	mkdir -p proj-$(PROJ_VER)/build && cd proj-$(PROJ_VER)/build && cmake .. $(CMAKE_FLAGS) -DCMAKE_INSTALL_LIBDIR=lib -DBUILD_APPS=OFF -DENABLE_TIFF=OFF -DENABLE_CURL=OFF -DBUILD_TESTING=OFF -DBUILD_PROJSYNC=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5 && $(MAKE) -j proj && $(MAKE) install
+	mkdir -p proj-$(PROJ_VER)/build && cd proj-$(PROJ_VER)/build && cmake .. $(CMAKE_FLAGS) -DCMAKE_INSTALL_LIBDIR=lib -DBUILD_APPS=OFF -DENABLE_TIFF=OFF -DENABLE_CURL=OFF -DBUILD_TESTING=OFF -DBUILD_PROJSYNC=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5 && $(MAKE) -j proj
+	@echo "======== Installing PROJ library manually ========"
+	mkdir -p $(INSTALL_PREFIX)/lib $(INSTALL_PREFIX)/include $(INSTALL_PREFIX)/bin
+	cp -a proj-$(PROJ_VER)/build/lib/libproj.* $(INSTALL_PREFIX)/lib/
+	cp -r proj-$(PROJ_VER)/include/proj $(INSTALL_PREFIX)/include/
+	cp proj-$(PROJ_VER)/build/include/*.h $(INSTALL_PREFIX)/include/ || true
 	@echo "======== PROJ build complete ========"
 
 # GEOS 3.12.1
