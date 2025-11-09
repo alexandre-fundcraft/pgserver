@@ -24,7 +24,7 @@ To achieve this, you need two things which `pgserver` provides
   * python binary wheels for multiple-plaforms with postgres binaries
   * convenience python methods that handle db initialization and server process management, that deals with things that would normally prevent you from running your python app seamlessly on environments like docker containers, a machine you have no root access in, machines with other running postgres servers, google colab, etc.  One main goal of the project is robustness around this.
 
-Additionally, this package includes the [pgvector](https://github.com/pgvector/pgvector) postgres extension, useful for storing associated vector data and for vector similarity queries, and [PostGIS](https://postgis.net/) for spatial and geographic objects.
+Additionally, this package includes the [pgvector](https://github.com/pgvector/pgvector) extension (v0.8.1) for vector similarity and [PostGIS](https://postgis.net/) (3.6.x with GEOS 3.14, PROJ 9.3) for spatial and geographic objects.
 
 ## Basic summary:
 * _Pip installable binaries_: built and tested on Manylinux, MacOS and Windows.
@@ -34,6 +34,7 @@ Additionally, this package includes the [pgvector](https://github.com/pgvector/p
 * _Convenient cleanup_: server process cleanup is done for you: when the process using pgserver ends, the server is shutdown, including when multiple independent processes call
 `pgserver.get_server(MY_DATA_DIR)` on the same dir (wait for last one). You can blow away your PGDATA dir and start again.
 * For lower-level control, wrappers to all binaries, such as `initdb`, `pg_ctl`, `psql`, `pg_config`. Includes header files in case you wish to build some other extension and use it against these binaries.
+* _PostGIS extension installs officially_: we install the upstream PostGIS extension SQL/control; `CREATE EXTENSION postgis;` includes and populates `spatial_ref_sys`.
 
 ```py
 # Example 1: postgres backed application

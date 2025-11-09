@@ -1,11 +1,15 @@
 SHELL := /bin/bash
-# Limit parallelism to avoid OOM/timeouts on CI runners. Override with make JOBS=4 if desired.
+# Parallelism: adjust via `make JOBS=4` locally; CI defaults to 2 for stability
 JOBS ?= 2
+# Optional: override strip program
+STRIP ?= strip
+# Keep dev artifacts (headers/static libs/pgxs) if set to 1
+KEEP_DEV ?= 0
 INSTALL_PREFIX := $(shell pwd)/../src/pgserver/pginstall/
 BUILD := $(shell pwd)/pgbuild/
 
 .PHONY: all
-all: pgvector postgis postgres
+all: pgvector postgis postgres prune
 
 ### postgres
 POSTGRES_VERSION := 16.2
@@ -36,15 +40,54 @@ $(POSTGRES_BLD)/src/bin/initdb/initdb: $(POSTGRES_BLD)/config.status
 $(INSTALL_PREFIX)/bin/postgres: $(POSTGRES_BLD)/config.status
 	mkdir -p $(INSTALL_PREFIX)
 	unset MAKELEVEL && unset MAKEFLAGS && unset MFLAGS && $(MAKE) -C $(POSTGRES_BLD) install
-	@echo "======== Setting RPATH on postgres binary ========"
-	patchelf --set-rpath '$$ORIGIN/../lib' $(INSTALL_PREFIX)/bin/postgres || \
-		(echo "WARNING: failed to set RPATH on postgres" && true)
+	patchelf --set-rpath '$$ORIGIN/../lib' $(INSTALL_PREFIX)/bin/postgres || true
 
 .PHONY: postgres
 postgres: $(INSTALL_PREFIX)/bin/postgres
 
+#
+# Prune & strip to reduce wheel size without affecting runtime
+#   - remove static libs and headers/dev files
+#   - remove pgxs build system
+#   - strip binaries and shared libs
+# Keep all runtime .so and essential executables in place.
+.PHONY: prune
+prune: postgres postgis pgvector
+	@sh -c 'if [ "$(KEEP_DEV)" != "1" ]; then \
+	  find $(INSTALL_PREFIX)/lib -type f -name "*.a" -print -delete || true; \
+	  rm -rf $(INSTALL_PREFIX)/include $(INSTALL_PREFIX)/lib/postgresql/pgxs || true; \
+	else \
+	  echo "KEEP_DEV=1 set; preserving headers/static libs/pgxs"; \
+	fi'
+	@echo "-- Removing non-essential PostgreSQL client tools"
+	@sh -c 'for f in $(INSTALL_PREFIX)/bin/*; do \
+	  bn=$$(basename "$$f"); \
+	  case "$$bn" in \
+	    postgres|initdb|pg_ctl|psql|pg_config) \
+	      ;; \
+	    *) \
+	      rm -f "$$f"; \
+	      ;; \
+	  esac; \
+	done'
+	@echo "-- Keeping only core PostGIS extension files; removing contrib payload"
+	@sh -c 'extdir=$(INSTALL_PREFIX)/share/postgresql/extension; \
+	  if [ -d "$$extdir" ]; then \
+	    find "$$extdir" -maxdepth 1 -type f -name "postgis*" \
+	      ! -name "postgis.control" \
+	      ! -name "postgis--$(POSTGIS_VER).sql" -print -delete; \
+	  fi; \
+	  rm -rf $(INSTALL_PREFIX)/share/postgresql/contrib || true'
+	@sh -c 'if command -v $(STRIP) >/dev/null 2>&1; then \
+	  find $(INSTALL_PREFIX)/bin -type f -exec $(STRIP) --strip-all {} + 2>/dev/null || true; \
+	  find $(INSTALL_PREFIX)/lib -type f -name "*.so*" -exec $(STRIP) --strip-unneeded {} + 2>/dev/null || true; \
+	  find $(INSTALL_PREFIX)/lib/postgresql -type f -name "*.so*" -exec $(STRIP) --strip-unneeded {} + 2>/dev/null || true; \
+	else \
+	  echo "strip not available; skipping binary stripping"; \
+	fi'
+
 ### pgvector
-PGVECTOR_TAG := v0.6.2
+PGVECTOR_TAG := v0.8.1
 PGVECTOR_URL := https://github.com/pgvector/pgvector/archive/refs/tags/$(PGVECTOR_TAG).tar.gz
 PGVECTOR_DIR := pgvector-$(PGVECTOR_TAG)
 
@@ -67,7 +110,8 @@ $(INSTALL_PREFIX)/lib/vector.so: $(PGVECTOR_DIR)/Makefile $(INSTALL_PREFIX)/bin/
 pgvector: postgres $(INSTALL_PREFIX)/lib/vector.so
 
 ### PostGIS dependencies and extension
-CMAKE_FLAGS := -DCMAKE_INSTALL_PREFIX=$(INSTALL_PREFIX) -DBUILD_SHARED_LIBS=ON -DBUILD_TESTING=OFF
+# Shared CMake defaults
+CMAKE_FLAGS := -DCMAKE_INSTALL_PREFIX=$(INSTALL_PREFIX) -DCMAKE_INSTALL_LIBDIR=lib -DBUILD_SHARED_LIBS=ON -DBUILD_TESTING=OFF
 
 # JSON-C 0.18
 JSONC_VER := 0.18
@@ -100,9 +144,7 @@ sqlite-autoconf-$(SQLITE_VER).tar.gz:
 sqlite-autoconf-$(SQLITE_VER)/configure: sqlite-autoconf-$(SQLITE_VER).tar.gz
 	mkdir -p sqlite-autoconf-$(SQLITE_VER) && tar xzf $< -C sqlite-autoconf-$(SQLITE_VER) --strip-components=1 && touch $@
 $(INSTALL_PREFIX)/lib/libsqlite3.so: sqlite-autoconf-$(SQLITE_VER)/configure
-	@echo "======== Building SQLite $(SQLITE_VER) ========"
 	cd sqlite-autoconf-$(SQLITE_VER) && ./configure --prefix=$(INSTALL_PREFIX) && $(MAKE) -j$(JOBS) && $(MAKE) install
-	@echo "======== SQLite build complete ========"
 
 # PROJ 9.3.1
 PROJ_VER := 9.3.1
@@ -111,42 +153,33 @@ proj-$(PROJ_VER).tar.gz:
 proj-$(PROJ_VER)/CMakeLists.txt: proj-$(PROJ_VER).tar.gz
 	mkdir -p proj-$(PROJ_VER) && tar xzf $< -C proj-$(PROJ_VER) --strip-components=1 && touch $@
 $(INSTALL_PREFIX)/lib/libproj.so: proj-$(PROJ_VER)/CMakeLists.txt $(INSTALL_PREFIX)/lib/libsqlite3.so
-	@echo "======== Building PROJ $(PROJ_VER) (this may take 5-10 minutes) ========"
-	mkdir -p proj-$(PROJ_VER)/build && cd proj-$(PROJ_VER)/build && cmake .. $(CMAKE_FLAGS) -DCMAKE_INSTALL_LIBDIR=lib -DBUILD_APPS=OFF -DENABLE_TIFF=OFF -DENABLE_CURL=OFF -DBUILD_TESTING=OFF -DBUILD_PROJSYNC=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5 && $(MAKE) -j$(JOBS) proj
-	@echo "======== Installing PROJ library manually ========"
+	# Build only the library to avoid 'make install' generating proj.db via sqlite3
+	mkdir -p proj-$(PROJ_VER)/build && cd proj-$(PROJ_VER)/build \
+		&& cmake .. $(CMAKE_FLAGS) -DBUILD_APPS=OFF -DENABLE_TIFF=OFF -DENABLE_CURL=OFF -DBUILD_PROJSYNC=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+		&& $(MAKE) -j$(JOBS) proj
+	# Manually install library and headers
 	mkdir -p $(INSTALL_PREFIX)/lib $(INSTALL_PREFIX)/include
 	cp -a proj-$(PROJ_VER)/build/lib/libproj.* $(INSTALL_PREFIX)/lib/
 	find proj-$(PROJ_VER)/src -name "*.h" -exec cp {} $(INSTALL_PREFIX)/include/ \;
 	find proj-$(PROJ_VER)/include -name "*.h" -exec cp {} $(INSTALL_PREFIX)/include/ \; 2>/dev/null || true
 	cp proj-$(PROJ_VER)/build/include/*.h $(INSTALL_PREFIX)/include/ 2>/dev/null || true
-	@echo "======== Verifying PROJ installation ========"
-	@ls -la $(INSTALL_PREFIX)/lib/libproj* 2>/dev/null || echo "No libproj files found!"
-	@echo "======== PROJ build complete ========"
 
-# GEOS 3.12.1
-GEOS_VER := 3.12.1
+# GEOS
+GEOS_VER := 3.14.1
 geos-$(GEOS_VER).tar.bz2:
 	curl -L -o $@ https://github.com/libgeos/geos/releases/download/$(GEOS_VER)/geos-$(GEOS_VER).tar.bz2
 geos-$(GEOS_VER)/CMakeLists.txt: geos-$(GEOS_VER).tar.bz2
 	mkdir -p geos-$(GEOS_VER) && tar xjf $< -C geos-$(GEOS_VER) --strip-components=1 && touch $@
 
 $(INSTALL_PREFIX)/lib/libgeos.so: geos-$(GEOS_VER)/CMakeLists.txt
-	@echo "======== Building GEOS $(GEOS_VER) (this may take 10-15 minutes) ========"
-	mkdir -p geos-$(GEOS_VER)/build && cd geos-$(GEOS_VER)/build && cmake .. $(CMAKE_FLAGS) -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_POLICY_VERSION_MINIMUM=3.5 && $(MAKE) -j$(JOBS) && $(MAKE) install
-	@echo "======== Verifying GEOS installation ========"
-	@echo "Files in lib:"
-	@ls -la $(INSTALL_PREFIX)/lib/libgeos* 2>/dev/null || echo "No libgeos files in lib!"
-	@echo "Files in lib64:"
-	@ls -la $(INSTALL_PREFIX)/lib64/libgeos* 2>/dev/null || echo "No libgeos files in lib64"
-	@echo "======== Setting RPATH on libgeos_c to find libgeos ========"
-	@if [ -f $(INSTALL_PREFIX)/lib/libgeos_c.so.1.18.1 ]; then \
-		patchelf --set-rpath '$$ORIGIN' $(INSTALL_PREFIX)/lib/libgeos_c.so.1.18.1 || \
-			(echo "WARNING: failed to set RPATH on libgeos_c.so.1.18.1" && true); \
+	mkdir -p geos-$(GEOS_VER)/build && cd geos-$(GEOS_VER)/build && cmake .. $(CMAKE_FLAGS) -DCMAKE_POLICY_VERSION_MINIMUM=3.5 && $(MAKE) -j$(JOBS) && $(MAKE) install
+	# Ensure libgeos_c can resolve libgeos via $ORIGIN (use soname symlink)
+	@if [ -e $(INSTALL_PREFIX)/lib/libgeos_c.so.1 ]; then \
+		patchelf --set-rpath '$$ORIGIN' $(INSTALL_PREFIX)/lib/libgeos_c.so.1 || true; \
 	fi
-	@echo "======== GEOS build complete ========"
 
-# PostGIS 3.3.6
-POSTGIS_VER := 3.3.6
+# PostGIS (works with PostgreSQL 16, GEOS 3.14.x, PROJ 9.3.x)
+POSTGIS_VER := 3.6.0
 postgis-$(POSTGIS_VER).tar.gz:
 	curl -L -o $@ https://github.com/postgis/postgis/archive/refs/tags/$(POSTGIS_VER).tar.gz
 postgis-$(POSTGIS_VER)/configure.ac: postgis-$(POSTGIS_VER).tar.gz
@@ -154,32 +187,17 @@ postgis-$(POSTGIS_VER)/configure.ac: postgis-$(POSTGIS_VER).tar.gz
 postgis-$(POSTGIS_VER)/configure: postgis-$(POSTGIS_VER)/configure.ac
 	cd postgis-$(POSTGIS_VER) && ./autogen.sh
 $(INSTALL_PREFIX)/lib/postgis-3.so: postgis-$(POSTGIS_VER)/configure $(INSTALL_PREFIX)/bin/postgres $(INSTALL_PREFIX)/lib/libjson-c.so $(INSTALL_PREFIX)/lib/libxml2.so $(INSTALL_PREFIX)/lib/libproj.so $(INSTALL_PREFIX)/lib/libgeos.so
-	@echo "======== Configuring PostGIS $(POSTGIS_VER) ========"
-	cd postgis-$(POSTGIS_VER) && LD_LIBRARY_PATH=$(INSTALL_PREFIX)/lib PKG_CONFIG_PATH=$(INSTALL_PREFIX)/lib/pkgconfig LDFLAGS="-L$(INSTALL_PREFIX)/lib -Wl,-rpath,$(INSTALL_PREFIX)/lib" ./configure --prefix=$(INSTALL_PREFIX) --with-pgconfig=$(INSTALL_PREFIX)/bin/pg_config \
-		--with-projdir=$(INSTALL_PREFIX) --with-geosconfig=$(INSTALL_PREFIX)/bin/geos-config --with-jsondir=$(INSTALL_PREFIX) \
+	cd postgis-$(POSTGIS_VER) && PATH=$(INSTALL_PREFIX)/bin:$$PATH LD_LIBRARY_PATH=$(INSTALL_PREFIX)/lib PKG_CONFIG_PATH=$(INSTALL_PREFIX)/lib/pkgconfig \
+		LDFLAGS="-L$(INSTALL_PREFIX)/lib -Wl,-rpath,$(INSTALL_PREFIX)/lib" \
+		./configure --prefix=$(INSTALL_PREFIX) --with-pgconfig=$(INSTALL_PREFIX)/bin/pg_config \
+		--with-projdir=$(INSTALL_PREFIX) --with-geosconfig=$(INSTALL_PREFIX)/bin/geos-config \
 		--without-raster --without-topology --without-protobuf
-	@echo "======== Building PostGIS $(POSTGIS_VER) ========"
-	unset MAKELEVEL && unset MAKEFLAGS && unset MFLAGS && LD_LIBRARY_PATH=$(INSTALL_PREFIX)/lib $(MAKE) -C postgis-$(POSTGIS_VER) -j$(JOBS) && $(MAKE) -C postgis-$(POSTGIS_VER) install
-	@echo "======== Setting RPATH on PostGIS library ========"
-	patchelf --set-rpath '$$ORIGIN/../../lib' $(INSTALL_PREFIX)/lib/postgresql/postgis-3.so || \
-		(echo "ERROR: patchelf failed or not available" && exit 1)
-	@echo "Verifying RPATH..."
-	patchelf --print-rpath $(INSTALL_PREFIX)/lib/postgresql/postgis-3.so
-	@echo "======== Installing PostGIS extension files ========"
-	mkdir -p $(INSTALL_PREFIX)/share/postgresql/extension
-	echo "# PostGIS extension" > $(INSTALL_PREFIX)/share/postgresql/extension/postgis.control
-	echo "comment = 'PostGIS geometry and geography spatial types and functions'" >> $(INSTALL_PREFIX)/share/postgresql/extension/postgis.control
-	echo "default_version = '3.3.6'" >> $(INSTALL_PREFIX)/share/postgresql/extension/postgis.control
-	echo "module_pathname = '\$$libdir/postgis-3'" >> $(INSTALL_PREFIX)/share/postgresql/extension/postgis.control
-	echo "relocatable = false" >> $(INSTALL_PREFIX)/share/postgresql/extension/postgis.control
-	echo "schema = public" >> $(INSTALL_PREFIX)/share/postgresql/extension/postgis.control
-	echo "superuser = false" >> $(INSTALL_PREFIX)/share/postgresql/extension/postgis.control
-	if [ -f postgis-$(POSTGIS_VER)/postgis/postgis.sql ]; then \
-		sed '/^BEGIN;$$/d; /^COMMIT;$$/d; /^ROLLBACK;$$/d' postgis-$(POSTGIS_VER)/postgis/postgis.sql > $(INSTALL_PREFIX)/share/postgresql/extension/postgis--$(POSTGIS_VER).sql; \
-	else \
-		sed '/^BEGIN;$$/d; /^COMMIT;$$/d; /^ROLLBACK;$$/d' $$(find postgis-$(POSTGIS_VER) -name "postgis.sql" -type f | head -1) > $(INSTALL_PREFIX)/share/postgresql/extension/postgis--$(POSTGIS_VER).sql; \
-	fi
-	@echo "======== PostGIS build complete ========"
+	unset MAKELEVEL && unset MAKEFLAGS && unset MFLAGS && PATH=$(INSTALL_PREFIX)/bin:$$PATH LD_LIBRARY_PATH=$(INSTALL_PREFIX)/lib $(MAKE) -C postgis-$(POSTGIS_VER) -j$(JOBS) && $(MAKE) -C postgis-$(POSTGIS_VER) install
+	# Ensure postgis-3.so resolves local libs at runtime
+	patchelf --set-rpath '$$ORIGIN/../../lib' $(INSTALL_PREFIX)/lib/postgresql/postgis-3.so || true
+	# Explicitly install official extension SQL/control (3.6.0 may not place by default)
+	@export PG_CONFIG=$(INSTALL_PREFIX)/bin/pg_config; \
+	PATH=$(INSTALL_PREFIX)/bin:$$PATH $(MAKE) -C postgis-$(POSTGIS_VER)/extensions/postgis install
 
 .PHONY: postgis
 postgis: $(INSTALL_PREFIX)/lib/postgis-3.so

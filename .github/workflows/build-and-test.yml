@@ -9,6 +9,11 @@ on:
     types:
       - created
   workflow_dispatch:
+    inputs:
+      python_tag:
+        description: "Python tag to build (e.g., cp313)"
+        required: false
+        default: "cp313"
 jobs:
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
@@ -19,7 +24,7 @@ jobs:
       matrix:
         include:
           # Temporarily disabled for testing PostGIS on Ubuntu only
-          # - os: macos-13-large
+          # - os: macos-15-intel
           #   arch: x86_64
           #   deployment-target: '10.9'
           # - os: macos-latest
@@ -81,6 +86,8 @@ jobs:
         env:
           CIBW_ARCHS: ${{ matrix.arch }}
           CIBW_SKIP: pp* cp38-* *-musllinux*
+          # Build only a single Python version by default (can be overridden via workflow_dispatch input)
+          CIBW_BUILD: ${{ github.event.inputs.python_tag || 'cp313' }}-*
           MACOSX_DEPLOYMENT_TARGET: ${{ matrix.deployment-target }}
         run: python -m cibuildwheel --output-dir wheelhouse
       - name: Save postgres build
