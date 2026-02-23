@@ -37,30 +37,19 @@ jobs:
           path: dist/*.whl
           name: main-package-wheels
 
-  # Build binary packages for each PostgreSQL version
+  # Build PG16 binary wheels for macOS ARM64 and Linux ARM64
   build_binary_wheels:
-    name: Build ${{ matrix.package }} on ${{ matrix.platform }}
+    name: Build pgserver-postgres-16 on ${{ matrix.platform }}
     runs-on: ${{ matrix.os }}
-    needs: build_main_package  # Build main package first
+    needs: build_main_package
     strategy:
       fail-fast: false
       matrix:
-        package: [pgserver-postgres-16, pgserver-postgres-17, pgserver-postgres-18]
-        os: [ubuntu-latest, macos-15-intel, macos-latest, windows-latest]
         include:
-          - os: ubuntu-latest
-            platform: linux-x86_64
-          - os: macos-15-intel
-            platform: macos-x86_64
-            macosx_deployment_target: '10.9'
           - os: macos-latest
             platform: macos-arm64
             macosx_deployment_target: '11.0'
-          - os: windows-latest
-            platform: windows-amd64
-          # Linux ARM64 - only PG16 for now
-          - package: pgserver-postgres-16
-            os: ubuntu-24.04-arm
+          - os: ubuntu-24.04-arm
             platform: linux-aarch64
     steps:
       - uses: actions/checkout@v4
@@ -80,20 +69,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y patchelf
 
-      - name: Install bison and flex (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          choco install -y winflexbison3
-
-      - name: Extract PostgreSQL version from package name
-        id: pg-version
-        shell: bash
-        run: |
-          # Extract version from package name (e.g., pgserver-postgres-16 -> 16)
-          VERSION="${{ matrix.package }}"
-          VERSION="${VERSION##*-}"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
       - name: Restore PostgreSQL build from cache
         id: cache-postgres
         uses: actions/cache@v3
@@ -101,24 +76,12 @@ jobs:
           path: |
             pgbuild
             src/pgserver/pginstall
-          key: ${{ runner.os }}-${{ runner.arch }}-pg${{ steps.pg-version.outputs.version }}-${{ hashFiles('pgbuild/Makefile') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pg16-${{ hashFiles('pgbuild/Makefile') }}
 
-      - name: Build binary package (Unix)
-        if: runner.os != 'Windows'
-        working-directory: packages/${{ matrix.package }}
+      - name: Build binary package
+        working-directory: packages/pgserver-postgres-16
         env:
           MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macosx_deployment_target || '' }}
-        run: |
-          make build
-          python -m build --wheel
-
-      - name: Build binary package (Windows)
-        if: runner.os == 'Windows'
-        working-directory: packages/${{ matrix.package }}
-        shell: bash
-        env:
-          BISON: "C:/ProgramData/chocolatey/bin/win_bison.exe"
-          FLEX: "C:/ProgramData/chocolatey/bin/win_flex.exe"
         run: |
           make build
           python -m build --wheel
@@ -126,8 +89,8 @@ jobs:
       - name: Upload binary package wheels
         uses: actions/upload-artifact@v4
         with:
-          path: packages/${{ matrix.package }}/dist/*.whl
-          name: binary-wheels-${{ matrix.package }}-${{ matrix.platform }}
+          path: packages/pgserver-postgres-16/dist/*.whl
+          name: binary-wheels-pgserver-postgres-16-${{ matrix.platform }}
 
   # Publish to PyPI
   publish-to-pypi:
