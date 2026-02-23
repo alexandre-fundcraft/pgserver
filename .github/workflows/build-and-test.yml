@@ -4,6 +4,7 @@ on:
     branches:
       - testing
       - main
+      - postgres-17-18-support
   release:
     types:
       - created
