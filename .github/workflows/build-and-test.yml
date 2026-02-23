@@ -86,6 +86,13 @@ jobs:
           make build
           python -m build --wheel
 
+      - name: Rename wheel with platform tag
+        working-directory: packages/pgserver-postgres-16/dist
+        run: |
+          for f in *.whl; do
+            mv "$f" "${f%.whl}-${{ matrix.platform }}.whl"
+          done
+
       - name: Upload binary package wheels
         uses: actions/upload-artifact@v4
         with:
