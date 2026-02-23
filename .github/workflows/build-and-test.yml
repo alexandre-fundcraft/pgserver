@@ -59,6 +59,10 @@ jobs:
             macosx_deployment_target: '11.0'
           - os: windows-latest
             platform: windows-amd64
+          # Linux ARM64 - only PG16 for now
+          - package: pgserver-postgres-16
+            os: ubuntu-24.04-arm
+            platform: linux-aarch64
     steps:
       - uses: actions/checkout@v4
 
