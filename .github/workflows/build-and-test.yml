@@ -48,9 +48,11 @@ jobs:
         include:
           - os: macos-latest
             platform: macos-arm64
+            wheel_platform: macosx_11_0_arm64
             macosx_deployment_target: '11.0'
           - os: ubuntu-24.04-arm
             platform: linux-aarch64
+            wheel_platform: manylinux_2_17_aarch64
     steps:
       - uses: actions/checkout@v4
 
@@ -86,12 +88,11 @@ jobs:
           make build
           python -m build --wheel
 
-      - name: Rename wheel with platform tag
+      - name: Retag wheel with platform
         working-directory: packages/pgserver-postgres-16/dist
         run: |
-          for f in *.whl; do
-            mv "$f" "${f%.whl}-${{ matrix.platform }}.whl"
-          done
+          pip install wheel
+          python -m wheel tags --platform-tag=${{ matrix.wheel_platform }} *.whl
 
       - name: Upload binary package wheels
         uses: actions/upload-artifact@v4
