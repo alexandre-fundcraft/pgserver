@@ -92,37 +92,27 @@ jobs:
           path: packages/pgserver-postgres-16/dist/*.whl
           name: binary-wheels-pgserver-postgres-16-${{ matrix.platform }}
 
-  # Publish to PyPI
-  publish-to-pypi:
-    if: ${{ startsWith(github.ref, 'refs/tags/') }}
-    name: Publish to PyPI
+  # Create/update "latest" release with all wheels
+  release:
+    name: Update latest release
     needs:
       - build_binary_wheels
       - build_main_package
     runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/p/pgserver
     permissions:
-      id-token: write
+      contents: write
     steps:
-      - name: Download all binary wheels
+      - name: Download all wheels
         uses: actions/download-artifact@v4
         with:
           path: dist/
-          pattern: binary-wheels-*
           merge-multiple: true
 
-      - name: Download main package wheels
-        uses: actions/download-artifact@v4
+      - name: Create or update latest release
+        uses: softprops/action-gh-release@v2
         with:
-          path: dist/
-          name: main-package-wheels
-
-      - name: Flatten dist directory
-        run: |
-          find dist -name '*.whl' -exec mv {} dist/ \;
-          find dist -type d -empty -delete
-
-      - name: Publish all packages to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+          tag_name: latest
+          name: Latest Build
+          prerelease: true
+          make_latest: false
+          files: dist/*.whl
