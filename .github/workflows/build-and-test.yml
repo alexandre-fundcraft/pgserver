@@ -2,9 +2,7 @@ name: Build and Test
 on:
   push:
     branches:
-      - testing
-      - main
-      - postgres-17-18-support
+      - develop
   release:
     types:
       - created
