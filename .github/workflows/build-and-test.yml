@@ -37,21 +37,23 @@ jobs:
           path: dist/*.whl
           name: main-package-wheels
 
-  # Build PG16 binary wheels for macOS ARM64 and Linux ARM64
+  # Build PG17/PG18 binary wheels for macOS ARM64 and Linux ARM64
   build_binary_wheels:
-    name: Build pgserver-postgres-16 on ${{ matrix.platform }}
+    name: Build pgserver-postgres-${{ matrix.pg }} on ${{ matrix.platform }}
     runs-on: ${{ matrix.os }}
     needs: build_main_package
     strategy:
       fail-fast: false
       matrix:
+        pg: [17, 18]
+        platform: [macos-arm64, linux-aarch64]
         include:
-          - os: macos-latest
-            platform: macos-arm64
+          - platform: macos-arm64
+            os: macos-latest
             wheel_platform: macosx_11_0_arm64
             macosx_deployment_target: '11.0'
-          - os: ubuntu-24.04-arm
-            platform: linux-aarch64
+          - platform: linux-aarch64
+            os: ubuntu-24.04-arm
             wheel_platform: manylinux_2_17_aarch64
     steps:
       - uses: actions/checkout@v4
@@ -73,15 +75,15 @@ jobs:
 
       - name: Restore PostgreSQL build from cache
         id: cache-postgres
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             pgbuild
             src/pgserver/pginstall
-          key: ${{ runner.os }}-${{ runner.arch }}-pg16-${{ hashFiles('pgbuild/Makefile') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pg${{ matrix.pg }}-${{ hashFiles('pgbuild/Makefile') }}
 
       - name: Build binary package
-        working-directory: packages/pgserver-postgres-16
+        working-directory: packages/pgserver-postgres-${{ matrix.pg }}
         env:
           MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macosx_deployment_target || '' }}
         run: |
@@ -89,16 +91,59 @@ jobs:
           python -m build --wheel
 
       - name: Retag wheel with platform
-        working-directory: packages/pgserver-postgres-16/dist
+        working-directory: packages/pgserver-postgres-${{ matrix.pg }}/dist
         run: |
           pip install wheel
-          python -m wheel tags --platform-tag=${{ matrix.wheel_platform }} *.whl
+          python -m wheel tags --remove --platform-tag=${{ matrix.wheel_platform }} *.whl
 
       - name: Upload binary package wheels
         uses: actions/upload-artifact@v4
         with:
-          path: packages/pgserver-postgres-16/dist/*.whl
-          name: binary-wheels-pgserver-postgres-16-${{ matrix.platform }}
+          path: packages/pgserver-postgres-${{ matrix.pg }}/dist/*.whl
+          name: binary-wheels-pgserver-postgres-${{ matrix.pg }}-${{ matrix.platform }}
+
+  # Install the built wheels and run the test suite on each Python version
+  test:
+    name: Test PG${{ matrix.pg }} on ${{ matrix.platform }} with Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    needs: build_binary_wheels
+    strategy:
+      fail-fast: false
+      matrix:
+        pg: [17, 18]
+        python: ['3.11', '3.12', '3.13', '3.14']
+        platform: [macos-arm64, linux-aarch64]
+        include:
+          - platform: macos-arm64
+            os: macos-latest
+          - platform: linux-aarch64
+            os: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Download main package wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: main-package-wheels
+          path: dist/
+
+      - name: Download binary package wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: binary-wheels-pgserver-postgres-${{ matrix.pg }}-${{ matrix.platform }}
+          path: dist/
+
+      - name: Install wheels
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "$(ls dist/pgserver-*.whl)[test]" dist/pgserver_postgres_*.whl
+
+      - name: Run tests
+        run: python -m pytest
 
   # Create/update "latest" release with all wheels
   release:
@@ -106,6 +151,7 @@ jobs:
     needs:
       - build_binary_wheels
       - build_main_package
+      - test
     runs-on: ubuntu-latest
     permissions:
       contents: write
