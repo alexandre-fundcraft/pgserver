@@ -1,6 +1,6 @@
 [project]
 name = "pgserver" # Required
-version = "0.2.0"  # Required
+version = "0.3.0"  # Required
 description = "Self-contained postgres server for your python applications" # Required
 readme = "README.md" # Optional
 requires-python = ">=3.9"
@@ -15,23 +15,19 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-pg16 = [
-    "pgserver-postgres-16==0.2.0",
-]
 pg17 = [
-    "pgserver-postgres-17==0.2.0",
+    "pgserver-postgres-17==0.3.0",
 ]
 pg18 = [
-    "pgserver-postgres-18==0.2.0",
+    "pgserver-postgres-18==0.3.0",
 ]
 dev = [
     "sysv_ipc",
 ]
 test = [
     "pytest",
-    "psycopg2-binary",
-    "sqlalchemy>=2",
-    "sqlalchemy-utils"
+    "psycopg[binary]",
+    "sqlalchemy>=2.1",
 ]
 
 [tool.setuptools.packages.find]
