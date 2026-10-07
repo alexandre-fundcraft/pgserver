@@ -75,7 +75,7 @@ jobs:
 
       - name: Restore PostgreSQL build from cache
         id: cache-postgres
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             pgbuild
@@ -94,7 +94,7 @@ jobs:
         working-directory: packages/pgserver-postgres-${{ matrix.pg }}/dist
         run: |
           pip install wheel
-          python -m wheel tags --platform-tag=${{ matrix.wheel_platform }} *.whl
+          python -m wheel tags --remove --platform-tag=${{ matrix.wheel_platform }} *.whl
 
       - name: Upload binary package wheels
         uses: actions/upload-artifact@v4
