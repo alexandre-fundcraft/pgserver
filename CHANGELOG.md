@@ -3,7 +3,7 @@
 ## [0.3.0] - 2026-10-07
 
 ### Changed
-- Binary wheels are built for PostgreSQL 17 and 18 only, on Linux ARM64 and macOS Apple Silicon; PostgreSQL 16 is no longer built
+- Binary wheels are built for PostgreSQL 17 and 18 only, on Linux ARM64 and macOS Apple Silicon; PostgreSQL 16 is dropped (`pg16` extra and `pgserver-postgres-16` package removed)
 - Wheels are published on GitHub releases instead of PyPI
 - Every build is tested on Python 3.11, 3.12, 3.13 and 3.14 before it is published
 

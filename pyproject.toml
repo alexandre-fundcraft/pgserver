@@ -15,9 +15,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-pg16 = [
-    "pgserver-postgres-16==0.3.0",
-]
 pg17 = [
     "pgserver-postgres-17==0.3.0",
 ]
@@ -30,7 +27,7 @@ dev = [
 test = [
     "pytest",
     "psycopg[binary]",
-    "sqlalchemy>=2",
+    "sqlalchemy>=2.1",
 ]
 
 [tool.setuptools.packages.find]
