@@ -145,9 +145,9 @@ jobs:
       - name: Run tests
         run: python -m pytest
 
-  # Create/update "latest" release with all wheels
+  # Upload all wheels: to the release that triggered the run, else to the moving "latest" prerelease
   release:
-    name: Update latest release
+    name: Publish wheels
     needs:
       - build_binary_wheels
       - build_main_package
@@ -162,7 +162,15 @@ jobs:
           path: dist/
           merge-multiple: true
 
+      - name: Upload wheels to the triggering release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.release.tag_name }}
+          files: dist/*.whl
+
       - name: Create or update latest release
+        if: github.event_name != 'release'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest

@@ -60,20 +60,20 @@ def tmp_postgres():
 
 ## Installation and PostgreSQL version
 
-Wheels are published on the [`latest` GitHub release](https://github.com/alexandre-fundcraft/pgserver/releases/tag/latest), not on PyPI.
+Wheels are published on [GitHub releases](https://github.com/alexandre-fundcraft/pgserver/releases), not on PyPI. Each version has its own release (`v0.3.0` below); `latest` is rebuilt on every push to `develop`.
 Install the main package (pure Python) together with one binary package for your PostgreSQL version and platform.
 PostgreSQL 17 and 18 are available, each with pgvector, for Linux ARM64 and macOS Apple Silicon:
 
 ```bash
 # Linux ARM64 (e.g. Docker on Apple Silicon), PostgreSQL 18
 pip install \
-  https://github.com/alexandre-fundcraft/pgserver/releases/download/latest/pgserver-0.2.0-py3-none-any.whl \
-  https://github.com/alexandre-fundcraft/pgserver/releases/download/latest/pgserver_postgres_18-0.2.0-py3-none-manylinux_2_17_aarch64.whl
+  https://github.com/alexandre-fundcraft/pgserver/releases/download/v0.3.0/pgserver-0.3.0-py3-none-any.whl \
+  https://github.com/alexandre-fundcraft/pgserver/releases/download/v0.3.0/pgserver_postgres_18-0.3.0-py3-none-manylinux_2_17_aarch64.whl
 
 # macOS Apple Silicon, PostgreSQL 18
 pip install \
-  https://github.com/alexandre-fundcraft/pgserver/releases/download/latest/pgserver-0.2.0-py3-none-any.whl \
-  https://github.com/alexandre-fundcraft/pgserver/releases/download/latest/pgserver_postgres_18-0.2.0-py3-none-macosx_11_0_arm64.whl
+  https://github.com/alexandre-fundcraft/pgserver/releases/download/v0.3.0/pgserver-0.3.0-py3-none-any.whl \
+  https://github.com/alexandre-fundcraft/pgserver/releases/download/v0.3.0/pgserver_postgres_18-0.3.0-py3-none-macosx_11_0_arm64.whl
 ```
 
 For PostgreSQL 17, replace `pgserver_postgres_18` with `pgserver_postgres_17`.
