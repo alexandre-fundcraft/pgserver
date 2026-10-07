@@ -29,9 +29,8 @@ dev = [
 ]
 test = [
     "pytest",
-    "psycopg2-binary",
+    "psycopg[binary]",
     "sqlalchemy>=2",
-    "sqlalchemy-utils"
 ]
 
 [tool.setuptools.packages.find]
