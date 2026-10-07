@@ -75,12 +75,24 @@ ifeq ($(UNAME_S),Linux)
 		echo "Warning: patchelf not found, binaries may not find bundled libraries"; \
 	fi
 else ifeq ($(UNAME_S),Darwin)
-	@for binary in $(INSTALL_PREFIX)/bin/*; do \
-		if file "$$binary" | grep -q "Mach-O"; then \
-			echo "Setting RPATH for $$binary"; \
-			install_name_tool -add_rpath @loader_path/../lib "$$binary" 2>/dev/null || true; \
-		fi \
+# PostgreSQL links its own libraries by absolute install path (the build machine's),
+# so rewrite those references to @rpath and point each file's rpath at lib/.
+	@find $(INSTALL_PREFIX) -type f | while read -r f; do \
+		file "$$f" | grep -q "Mach-O" || continue; \
+		case "$$f" in \
+			*/bin/*) rpath=@loader_path/../lib ;; \
+			*/lib/postgresql/*) rpath=@loader_path/.. ;; \
+			*) rpath=@loader_path ;; \
+		esac; \
+		echo "Relocating $$f"; \
+		case "$$f" in *.dylib) install_name_tool -id "@rpath/$$(basename "$$f")" "$$f" ;; esac; \
+		for dep in $$(otool -L "$$f" | tail -n +2 | awk '{print $$1}' | grep '/pginstall/lib/'); do \
+			install_name_tool -change "$$dep" "@rpath/$$(basename "$$dep")" "$$f"; \
+		done; \
+		install_name_tool -add_rpath "$$rpath" "$$f" 2>/dev/null || true; \
 	done
+	@! find $(INSTALL_PREFIX) -type f -exec otool -L {} + 2>/dev/null | grep -E '^[[:space:]]+[^[:space:]]*/pginstall/lib/' \
+		|| (echo "Absolute pginstall paths remain in Mach-O files" && exit 1)
 endif
 
 .PHONY: postgres
