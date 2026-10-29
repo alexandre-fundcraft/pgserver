@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.0] - 2026-10-29
+
+### Added
+- Standard PostgreSQL `contrib` extensions (`btree_gist`, `unaccent`, `pg_trgm`, `pgcrypto`, etc.) are bundled alongside `pgvector` in PostgreSQL 17 and 18 binary wheels
+- Support for Linux x86_64 (`manylinux_2_17_x86_64`) binary wheels in addition to Linux ARM64 and macOS Apple Silicon
+
 ## [0.3.0] - 2026-10-07
 
 ### Changed

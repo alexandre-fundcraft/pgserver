@@ -37,7 +37,7 @@ jobs:
           path: dist/*.whl
           name: main-package-wheels
 
-  # Build PG17/PG18 binary wheels for macOS ARM64 and Linux ARM64
+  # Build PG17/PG18 binary wheels for macOS ARM64, Linux ARM64, and Linux x86_64
   build_binary_wheels:
     name: Build pgserver-postgres-${{ matrix.pg }} on ${{ matrix.platform }}
     runs-on: ${{ matrix.os }}
@@ -46,7 +46,7 @@ jobs:
       fail-fast: false
       matrix:
         pg: [17, 18]
-        platform: [macos-arm64, linux-aarch64]
+        platform: [macos-arm64, linux-aarch64, linux-x86_64]
         include:
           - platform: macos-arm64
             os: macos-latest
@@ -55,6 +55,9 @@ jobs:
           - platform: linux-aarch64
             os: ubuntu-24.04-arm
             wheel_platform: manylinux_2_17_aarch64
+          - platform: linux-x86_64
+            os: ubuntu-latest
+            wheel_platform: manylinux_2_17_x86_64
     steps:
       - uses: actions/checkout@v4
 
@@ -102,28 +105,27 @@ jobs:
           path: packages/pgserver-postgres-${{ matrix.pg }}/dist/*.whl
           name: binary-wheels-pgserver-postgres-${{ matrix.pg }}-${{ matrix.platform }}
 
-  # Install the built wheels and run the test suite on each Python version
+  # Install the built wheels and run the test suite on Python 3.11 to 3.14
   test:
-    name: Test PG${{ matrix.pg }} on ${{ matrix.platform }} with Python ${{ matrix.python }}
+    name: Test PG${{ matrix.pg }} on ${{ matrix.platform }} (Python 3.11-3.14)
     runs-on: ${{ matrix.os }}
     needs: build_binary_wheels
     strategy:
       fail-fast: false
       matrix:
         pg: [17, 18]
-        python: ['3.11', '3.12', '3.13', '3.14']
-        platform: [macos-arm64, linux-aarch64]
+        platform: [macos-arm64, linux-aarch64, linux-x86_64]
         include:
           - platform: macos-arm64
             os: macos-latest
           - platform: linux-aarch64
             os: ubuntu-24.04-arm
+          - platform: linux-x86_64
+            os: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v6
-        with:
-          python-version: ${{ matrix.python }}
+      - uses: astral-sh/setup-uv@v4
 
       - name: Download main package wheel
         uses: actions/download-artifact@v4
@@ -137,13 +139,14 @@ jobs:
           name: binary-wheels-pgserver-postgres-${{ matrix.pg }}-${{ matrix.platform }}
           path: dist/
 
-      - name: Install wheels
+      - name: Run tests on Python 3.11, 3.12, 3.13 and 3.14
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install "$(ls dist/pgserver-*.whl)[test]" dist/pgserver_postgres_*.whl
-
-      - name: Run tests
-        run: python -m pytest
+          MAIN_WHL="$(ls dist/pgserver-*.whl)"
+          BIN_WHL="$(ls dist/pgserver_postgres_*.whl)"
+          for py in 3.11 3.12 3.13 3.14; do
+            echo "=== Testing PG${{ matrix.pg }} on Python $py ==="
+            uv run --no-project --isolated --python "$py" --with "${MAIN_WHL}[test]" --with "$BIN_WHL" pytest
+          done
 
   # Upload all wheels: to the release that triggered the run, else to the moving "latest" prerelease
   release:

@@ -56,11 +56,13 @@ $(POSTGRES_BLD)/config.status: $(POSTGRES_SRC)/configure
 # for explanation of unsetting make env variables prior to calling postgres' own make
 $(POSTGRES_BLD)/src/bin/initdb/initdb: $(POSTGRES_BLD)/config.status
 	unset MAKELEVEL && unset MAKEFLAGS && unset MFLAGS && $(MAKE) -C $(POSTGRES_BLD) -j
+	unset MAKELEVEL && unset MAKEFLAGS && unset MFLAGS && $(MAKE) -C $(POSTGRES_BLD)/contrib -j
 
 ## install to INSTALL_PREFIX
 $(INSTALL_PREFIX)/bin/postgres: $(POSTGRES_BLD)/config.status
 	mkdir -p $(INSTALL_PREFIX)
 	unset MAKELEVEL && unset MAKEFLAGS && unset MFLAGS && $(MAKE) -C $(POSTGRES_BLD) install
+	unset MAKELEVEL && unset MAKEFLAGS && unset MFLAGS && $(MAKE) -C $(POSTGRES_BLD)/contrib install
 	# Set RPATH on all binaries to find bundled libraries
 	@echo "Setting RPATH on PostgreSQL binaries..."
 ifeq ($(UNAME_S),Linux)

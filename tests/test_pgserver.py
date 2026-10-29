@@ -39,6 +39,11 @@ def _check_sqlalchemy_works(srv : pgserver.PostgresServer):
         assert result
         assert result[0] == 1
 
+        conn.execute(sa.text("CREATE EXTENSION IF NOT EXISTS btree_gist;"))
+        conn.execute(sa.text("CREATE EXTENSION IF NOT EXISTS unaccent;"))
+        unaccent_res = conn.execute(sa.text("SELECT unaccent('Société');")).scalar()
+        assert unaccent_res == 'Societe'
+
 def _check_postmaster_info(pgdata : Path, postmaster_info : pgserver.utils.PostmasterInfo):
     assert postmaster_info is not None
     assert postmaster_info.pgdata is not None

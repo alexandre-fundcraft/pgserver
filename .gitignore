@@ -133,5 +133,6 @@ dmypy.json
 .idea
 
 build/
-pgbuild/
+pgbuild/*
+!pgbuild/Makefile
 src/pgserver/pginstall
