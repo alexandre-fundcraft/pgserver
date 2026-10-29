@@ -2,8 +2,7 @@ name: Build and Test
 on:
   push:
     branches:
-      - testing
-      - main
+      - develop
   release:
     types:
       - created
@@ -38,27 +37,24 @@ jobs:
           path: dist/*.whl
           name: main-package-wheels
 
-  # Build binary packages for each PostgreSQL version
+  # Build PG17/PG18 binary wheels for macOS ARM64 and Linux ARM64
   build_binary_wheels:
-    name: Build ${{ matrix.package }} on ${{ matrix.platform }}
+    name: Build pgserver-postgres-${{ matrix.pg }} on ${{ matrix.platform }}
     runs-on: ${{ matrix.os }}
-    needs: build_main_package  # Build main package first
+    needs: build_main_package
     strategy:
       fail-fast: false
       matrix:
-        package: [pgserver-postgres-16, pgserver-postgres-17, pgserver-postgres-18]
-        os: [ubuntu-latest, macos-15-intel, macos-latest, windows-latest]
+        pg: [17, 18]
+        platform: [macos-arm64, linux-aarch64]
         include:
-          - os: ubuntu-latest
-            platform: linux-x86_64
-          - os: macos-15-intel
-            platform: macos-x86_64
-            macosx_deployment_target: '10.9'
-          - os: macos-latest
-            platform: macos-arm64
+          - platform: macos-arm64
+            os: macos-latest
+            wheel_platform: macosx_11_0_arm64
             macosx_deployment_target: '11.0'
-          - os: windows-latest
-            platform: windows-amd64
+          - platform: linux-aarch64
+            os: ubuntu-24.04-arm
+            wheel_platform: manylinux_2_17_aarch64
     steps:
       - uses: actions/checkout@v4
 
@@ -77,86 +73,108 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y patchelf
 
-      - name: Install bison and flex (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          choco install -y winflexbison3
-
-      - name: Extract PostgreSQL version from package name
-        id: pg-version
-        shell: bash
-        run: |
-          # Extract version from package name (e.g., pgserver-postgres-16 -> 16)
-          VERSION="${{ matrix.package }}"
-          VERSION="${VERSION##*-}"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-
       - name: Restore PostgreSQL build from cache
         id: cache-postgres
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             pgbuild
             src/pgserver/pginstall
-          key: ${{ runner.os }}-${{ runner.arch }}-pg${{ steps.pg-version.outputs.version }}-${{ hashFiles('pgbuild/Makefile') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pg${{ matrix.pg }}-${{ hashFiles('pgbuild/Makefile') }}
 
-      - name: Build binary package (Unix)
-        if: runner.os != 'Windows'
-        working-directory: packages/${{ matrix.package }}
+      - name: Build binary package
+        working-directory: packages/pgserver-postgres-${{ matrix.pg }}
         env:
           MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macosx_deployment_target || '' }}
         run: |
           make build
           python -m build --wheel
 
-      - name: Build binary package (Windows)
-        if: runner.os == 'Windows'
-        working-directory: packages/${{ matrix.package }}
-        shell: bash
-        env:
-          BISON: "C:/ProgramData/chocolatey/bin/win_bison.exe"
-          FLEX: "C:/ProgramData/chocolatey/bin/win_flex.exe"
+      - name: Retag wheel with platform
+        working-directory: packages/pgserver-postgres-${{ matrix.pg }}/dist
         run: |
-          make build
-          python -m build --wheel
+          pip install wheel
+          python -m wheel tags --remove --platform-tag=${{ matrix.wheel_platform }} *.whl
 
       - name: Upload binary package wheels
         uses: actions/upload-artifact@v4
         with:
-          path: packages/${{ matrix.package }}/dist/*.whl
-          name: binary-wheels-${{ matrix.package }}-${{ matrix.platform }}
+          path: packages/pgserver-postgres-${{ matrix.pg }}/dist/*.whl
+          name: binary-wheels-pgserver-postgres-${{ matrix.pg }}-${{ matrix.platform }}
 
-  # Publish to PyPI
-  publish-to-pypi:
-    if: ${{ startsWith(github.ref, 'refs/tags/') }}
-    name: Publish to PyPI
+  # Install the built wheels and run the test suite on each Python version
+  test:
+    name: Test PG${{ matrix.pg }} on ${{ matrix.platform }} with Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    needs: build_binary_wheels
+    strategy:
+      fail-fast: false
+      matrix:
+        pg: [17, 18]
+        python: ['3.11', '3.12', '3.13', '3.14']
+        platform: [macos-arm64, linux-aarch64]
+        include:
+          - platform: macos-arm64
+            os: macos-latest
+          - platform: linux-aarch64
+            os: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Download main package wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: main-package-wheels
+          path: dist/
+
+      - name: Download binary package wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: binary-wheels-pgserver-postgres-${{ matrix.pg }}-${{ matrix.platform }}
+          path: dist/
+
+      - name: Install wheels
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "$(ls dist/pgserver-*.whl)[test]" dist/pgserver_postgres_*.whl
+
+      - name: Run tests
+        run: python -m pytest
+
+  # Upload all wheels: to the release that triggered the run, else to the moving "latest" prerelease
+  release:
+    name: Publish wheels
     needs:
       - build_binary_wheels
       - build_main_package
+      - test
     runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/p/pgserver
     permissions:
-      id-token: write
+      contents: write
     steps:
-      - name: Download all binary wheels
+      - name: Download all wheels
         uses: actions/download-artifact@v4
         with:
           path: dist/
-          pattern: binary-wheels-*
           merge-multiple: true
 
-      - name: Download main package wheels
-        uses: actions/download-artifact@v4
+      - name: Upload wheels to the triggering release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
         with:
-          path: dist/
-          name: main-package-wheels
+          tag_name: ${{ github.event.release.tag_name }}
+          files: dist/*.whl
 
-      - name: Flatten dist directory
-        run: |
-          find dist -name '*.whl' -exec mv {} dist/ \;
-          find dist -type d -empty -delete
-
-      - name: Publish all packages to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+      - name: Create or update latest release
+        if: github.event_name != 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest Build
+          prerelease: true
+          make_latest: false
+          files: dist/*.whl

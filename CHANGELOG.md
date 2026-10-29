@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.0] - 2026-10-07
+
+### Changed
+- Binary wheels are built for PostgreSQL 17 and 18 only, on Linux ARM64 and macOS Apple Silicon; PostgreSQL 16 is dropped (`pg16` extra and `pgserver-postgres-16` package removed)
+- Wheels are published on GitHub releases instead of PyPI
+- Every build is tested on Python 3.11, 3.12, 3.13 and 3.14 before it is published
+
+### Fixed
+- macOS binaries no longer reference the build machine's paths, so `initdb` runs on any Mac
+
 ## [0.2.0] - 2025-11-07
 
 ### Added

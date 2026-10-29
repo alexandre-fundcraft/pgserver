@@ -13,7 +13,6 @@ import psutil
 import platform
 import sqlalchemy as sa
 import datetime
-from sqlalchemy_utils import database_exists, create_database
 import logging
 import os
 
@@ -21,8 +20,9 @@ def _check_sqlalchemy_works(srv : pgserver.PostgresServer):
     database_name = 'testdb'
     uri = srv.get_uri(database_name)
 
-    if not database_exists(uri):
-        create_database(uri)
+    with sa.create_engine(srv.get_uri('postgres'), isolation_level='AUTOCOMMIT').connect() as admin:
+        if not admin.execute(sa.text("select 1 from pg_database where datname = :n"), {"n": database_name}).scalar():
+            admin.execute(sa.text(f"create database {database_name}"))
 
     engine = sa.create_engine(uri)
     conn = engine.connect()
