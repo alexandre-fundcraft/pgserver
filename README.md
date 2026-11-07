@@ -113,6 +113,21 @@ Then install with:
 uv sync --group local
 ```
 
+### Install from the wheel index
+
+Every stable release is published as a PEP 503 index on GitHub Pages, so Dependabot and `uv lock` can resolve new versions:
+
+```toml
+[[tool.uv.index]]
+name = "pgserver"
+url = "https://alexandre-fundcraft.github.io/pgserver/simple/"
+explicit = true
+
+[tool.uv.sources]
+pgserver = { index = "pgserver" }
+pgserver-postgres-17 = { index = "pgserver" }
+```
+
 ### Using `Poetry` (`pyproject.toml`)
 
 ```toml
