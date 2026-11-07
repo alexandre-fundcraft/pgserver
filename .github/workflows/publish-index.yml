@@ -1,0 +1,47 @@
+name: Publish wheel index
+
+on:
+  workflow_run:
+    workflows: ["Build and Test"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'release')
+    runs-on: ubuntu-latest
+    environment: github-pages
+    steps:
+      - uses: actions/checkout@v4
+
+      # Stable releases only (the `latest` prerelease is skipped); a release whose
+      # build failed before upload has no wheels and is skipped by name.
+      - name: Download wheels from stable releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for t in $(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate -q '.[] | select(.prerelease | not) | select(any(.assets[]; .name | endswith(".whl"))) | .tag_name'); do
+            gh release download "$t" --pattern '*.whl' --dir wheels
+          done
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - run: python .github/scripts/build_simple_index.py wheels site
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - uses: actions/deploy-pages@v4
